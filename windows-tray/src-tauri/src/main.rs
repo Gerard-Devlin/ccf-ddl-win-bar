@@ -76,6 +76,17 @@ struct Timeline {
     deadline: String,
     #[serde(default)]
     timezone: Option<String>,
+    #[serde(default)]
+    comment: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+struct DeadlineDetail {
+    deadline_type: &'static str,
+    comment: Option<String>,
+    deadline: String,
+    timezone: String,
+    deadline_ms: i64,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -90,6 +101,7 @@ struct DeadlineItem {
     deadline_type: &'static str,
     deadline_ms: i64,
     link: String,
+    deadlines: Vec<DeadlineDetail>,
 }
 
 fn default_timezone() -> String {
@@ -154,39 +166,61 @@ fn deadline_to_utc(value: &str, timezone: &str) -> Option<DateTime<Utc>> {
 
 fn collect_deadlines(conferences: Vec<Conference>, now: DateTime<Utc>) -> Vec<DeadlineItem> {
     let mut deadlines = Vec::new();
+    let now_ms = now.timestamp_millis();
 
     for conference in conferences {
         for edition in conference.confs {
+            let mut edition_deadlines = Vec::new();
+
             for timeline in edition.timeline {
-                let timezone = timeline.timezone.as_deref().unwrap_or(&edition.timezone);
+                let timezone = timeline
+                    .timezone
+                    .unwrap_or_else(|| edition.timezone.clone());
                 let candidates = [
-                    (timeline.abstract_deadline.as_deref(), "摘要截止"),
-                    (Some(timeline.deadline.as_str()), "投稿截止"),
+                    (timeline.abstract_deadline, "Abstract Deadline"),
+                    (Some(timeline.deadline), "Submission Deadline"),
                 ];
 
                 for (value, deadline_type) in candidates {
-                    let Some(deadline) = value.and_then(|value| deadline_to_utc(value, timezone))
-                    else {
+                    let Some(value) = value else {
                         continue;
                     };
-                    if deadline <= now {
+                    let Some(deadline) = deadline_to_utc(&value, &timezone) else {
                         continue;
-                    }
+                    };
 
-                    deadlines.push(DeadlineItem {
-                        id: edition.id.clone(),
-                        title: conference.title.clone(),
-                        sub: conference.sub.clone(),
-                        rank: conference.rank.ccf.clone(),
-                        core_rank: conference.rank.core.clone(),
-                        thcpl_rank: conference.rank.thcpl.clone(),
-                        year: edition.year,
+                    edition_deadlines.push(DeadlineDetail {
                         deadline_type,
+                        comment: timeline.comment.clone(),
+                        deadline: value,
+                        timezone: timezone.clone(),
                         deadline_ms: deadline.timestamp_millis(),
-                        link: edition.link.clone(),
                     });
                 }
             }
+
+            edition_deadlines.sort_by_key(|deadline| deadline.deadline_ms);
+            let Some(next_deadline) = edition_deadlines
+                .iter()
+                .find(|deadline| deadline.deadline_ms > now_ms)
+                .cloned()
+            else {
+                continue;
+            };
+
+            deadlines.push(DeadlineItem {
+                id: edition.id,
+                title: conference.title.clone(),
+                sub: conference.sub.clone(),
+                rank: conference.rank.ccf.clone(),
+                core_rank: conference.rank.core.clone(),
+                thcpl_rank: conference.rank.thcpl.clone(),
+                year: edition.year,
+                deadline_type: next_deadline.deadline_type,
+                deadline_ms: next_deadline.deadline_ms,
+                link: edition.link,
+                deadlines: edition_deadlines,
+            });
         }
     }
 
@@ -202,7 +236,7 @@ async fn fetch_deadlines() -> Result<Vec<DeadlineItem>, String> {
         .timeout(Duration::from_secs(12))
         .user_agent("CCF-Deadlines-Windows-Tray/0.1")
         .build()
-        .map_err(|error| format!("无法创建网络请求：{error}"))?;
+        .map_err(|error| format!("Unable to create the network client: {error}"))?;
 
     let mut last_error = String::new();
     for url in DATA_URLS {
@@ -231,23 +265,26 @@ async fn fetch_deadlines() -> Result<Vec<DeadlineItem>, String> {
         };
 
         let conferences: Vec<Conference> = serde_yaml::from_str(&yaml)
-            .map_err(|error| format!("线上会议数据格式不正确：{error}"))?;
+            .map_err(|error| format!("Invalid conference data: {error}"))?;
         return Ok(collect_deadlines(conferences, Utc::now()));
     }
 
-    Err(format!("无法连接 CCF Deadlines 数据源：{last_error}"))
+    Err(format!(
+        "Unable to connect to the CCF Deadlines data source: {last_error}"
+    ))
 }
 
 #[tauri::command]
 fn open_url(app: AppHandle, url: String) -> Result<(), String> {
-    let parsed = tauri::Url::parse(&url).map_err(|_| "会议官网链接无效".to_string())?;
+    let parsed =
+        tauri::Url::parse(&url).map_err(|_| "Invalid conference website URL".to_string())?;
     if !matches!(parsed.scheme(), "http" | "https") {
-        return Err("只允许打开 HTTP 或 HTTPS 会议官网".into());
+        return Err("Only HTTP or HTTPS conference website URLs are allowed".into());
     }
 
     app.opener()
         .open_url(parsed.as_str(), None::<&str>)
-        .map_err(|error| format!("无法打开会议官网：{error}"))
+        .map_err(|error| format!("Unable to open the conference website: {error}"))
 }
 
 #[tauri::command]
@@ -504,7 +541,7 @@ mod tests {
     }
 
     #[test]
-    fn collects_and_sorts_future_deadlines() {
+    fn collects_all_details_and_uses_the_nearest_future_deadline() {
         let yaml = r#"
     - title: FIRST
       sub: AI
@@ -529,8 +566,22 @@ mod tests {
           link: https://example.com/second
           timezone: UTC
           timeline:
+            - deadline: '2026-11-15 00:00:00'
+              comment: Previous cycle
             - abstract_deadline: '2027-01-01 00:00:00'
               deadline: '2027-01-03 00:00:00'
+              timezone: UTC+8
+              comment: Main track
+            - deadline: TBD
+              comment: Unparseable date
+    - title: PAST
+      sub: AI
+      confs:
+        - year: 2026
+          id: past26
+          timezone: UTC
+          timeline:
+            - deadline: '2026-10-01 00:00:00'
 "#;
         let data: Vec<Conference> = serde_yaml::from_str(yaml).unwrap();
         let now = DateTime::parse_from_rfc3339("2026-12-01T00:00:00Z")
@@ -540,10 +591,38 @@ mod tests {
 
         assert_eq!(deadlines.len(), 2);
         assert_eq!(deadlines[0].id, "second27");
-        assert_eq!(deadlines[0].deadline_type, "摘要截止");
+        assert_eq!(deadlines[0].deadline_type, "Abstract Deadline");
+        assert_eq!(
+            deadlines[0].deadline_ms,
+            deadline_to_utc("2027-01-01 00:00:00", "UTC+8")
+                .unwrap()
+                .timestamp_millis()
+        );
         assert_eq!(deadlines[0].core_rank, "A*");
         assert_eq!(deadlines[0].thcpl_rank, "A");
+        assert_eq!(deadlines[0].deadlines.len(), 3);
+
+        let details = &deadlines[0].deadlines;
+        assert_eq!(details[0].deadline_type, "Submission Deadline");
+        assert_eq!(details[0].comment.as_deref(), Some("Previous cycle"));
+        assert_eq!(details[0].deadline, "2026-11-15 00:00:00");
+        assert_eq!(details[0].timezone, "UTC");
+        assert!(details[0].deadline_ms < now.timestamp_millis());
+
+        assert_eq!(details[1].deadline_type, "Abstract Deadline");
+        assert_eq!(details[1].comment.as_deref(), Some("Main track"));
+        assert_eq!(details[1].deadline, "2027-01-01 00:00:00");
+        assert_eq!(details[1].timezone, "UTC+8");
+        assert_eq!(details[1].deadline_ms, deadlines[0].deadline_ms);
+
+        assert_eq!(details[2].deadline_type, "Submission Deadline");
+        assert_eq!(details[2].comment.as_deref(), Some("Main track"));
+        assert_eq!(details[2].deadline, "2027-01-03 00:00:00");
+        assert_eq!(details[2].timezone, "UTC+8");
+        assert!(details[2].deadline_ms > details[1].deadline_ms);
+
         assert_eq!(deadlines[1].id, "first27");
+        assert_eq!(deadlines[1].deadline_type, "Submission Deadline");
         assert_eq!(deadlines[1].core_rank, "N");
         assert_eq!(deadlines[1].thcpl_rank, "N");
     }

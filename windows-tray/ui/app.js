@@ -4,6 +4,11 @@ const filterOptions = document.querySelector("#filter-options");
 const filterOptionsTitle = document.querySelector("#filter-options-title");
 const filterGroups = document.querySelector("#filter-groups");
 const filterSummary = document.querySelector("#filter-summary");
+const deadlineDetails = document.querySelector("#deadline-details");
+const deadlineDetailsTitle = document.querySelector("#deadline-details-title");
+const deadlineDetailsList = document.querySelector("#deadline-details-list");
+const popoverShell = document.querySelector(".popover-shell");
+const openFiltersButton = document.querySelector("#open-filters");
 const withinDays = document.querySelector("#within-days");
 const displayCount = document.querySelector("#display-count");
 const autostartToggle = document.querySelector("#autostart-toggle");
@@ -42,15 +47,50 @@ let autostartEnabled = false;
 let autostartBusy = false;
 let currentFilterGroup = "ccf";
 let flyoutLevel = 0;
+let flyoutKind = "none";
+let activeDeadlineId = null;
+let detailsCloseTimer;
 
+const previewNow = Date.now();
 const previewDeadlines = [
-  { id: "icml26", rank: "A", core_rank: "A*", thcpl_rank: "A", sub: "AI", link: "https://icml.cc/", deadline_ms: Date.now() + 12 * 86400000 + 22 * 3600000 },
-  { id: "acl26", rank: "A", core_rank: "A*", thcpl_rank: "A", sub: "AI", link: "https://www.aclweb.org/", deadline_ms: Date.now() + 17 * 86400000 + 22 * 3600000 },
-  { id: "issta26", rank: "A", core_rank: "A", thcpl_rank: "A", sub: "SE", link: "https://conf.researchr.org/series/issta", deadline_ms: Date.now() + 18 * 86400000 + 22 * 3600000 },
-  { id: "ase26", rank: "A", core_rank: "A*", thcpl_rank: "A", sub: "SE", link: "https://conf.researchr.org/series/ase", deadline_ms: Date.now() + 74 * 86400000 + 22 * 3600000 },
-  { id: "sigmod27", rank: "A", core_rank: "A*", thcpl_rank: "A", sub: "DB", link: "https://sigmod.org/", deadline_ms: Date.now() + 91 * 86400000 + 4 * 3600000 },
-  { id: "aaai27", rank: "A", core_rank: "A*", thcpl_rank: "A", sub: "AI", link: "https://aaai.org/", deadline_ms: Date.now() + 108 * 86400000 + 9 * 3600000 },
+  makePreviewDeadline({ id: "icml26", title: "ICML", year: 2026, rank: "A", coreRank: "A*", thcplRank: "A", sub: "AI", link: "https://icml.cc/", offset: 12 * 86400000 + 22 * 3600000, comment: "Main Track" }),
+  makePreviewDeadline({ id: "acl26", title: "ACL", year: 2026, rank: "A", coreRank: "A*", thcplRank: "A", sub: "AI", link: "https://www.aclweb.org/", offset: 17 * 86400000 + 22 * 3600000, comment: "Main Conference" }),
+  makePreviewDeadline({ id: "issta26", title: "ISSTA", year: 2026, rank: "A", coreRank: "A", thcplRank: "A", sub: "SE", link: "https://conf.researchr.org/series/issta", offset: 18 * 86400000 + 22 * 3600000, comment: "Research Papers" }),
+  makePreviewDeadline({ id: "ase26", title: "ASE", year: 2026, rank: "A", coreRank: "A*", thcplRank: "A", sub: "SE", link: "https://conf.researchr.org/series/ase", offset: 74 * 86400000 + 22 * 3600000, comment: "Technical Track" }),
+  makePreviewDeadline({ id: "sigmod27", title: "SIGMOD", year: 2027, rank: "A", coreRank: "A*", thcplRank: "A", sub: "DB", link: "https://sigmod.org/", offset: 91 * 86400000 + 4 * 3600000, comment: "Second Submission Cycle" }),
+  makePreviewDeadline({ id: "aaai27", title: "AAAI", year: 2027, rank: "A", coreRank: "A*", thcplRank: "A", sub: "AI", link: "https://aaai.org/", offset: 108 * 86400000 + 9 * 3600000, comment: "Main Technical Track" }),
 ];
+
+function makePreviewDeadline({ id, title, year, rank, coreRank, thcplRank, sub, link, offset, comment }) {
+  const abstractMs = previewNow + offset;
+  const submissionMs = abstractMs + 7 * 86400000;
+  return {
+    id,
+    title,
+    year,
+    rank,
+    core_rank: coreRank,
+    thcpl_rank: thcplRank,
+    sub,
+    link,
+    deadline_type: "Abstract deadline",
+    deadline_ms: abstractMs,
+    deadline_details: [
+      previewDetail(abstractMs, comment, "Abstract deadline"),
+      previewDetail(submissionMs, comment, "Submission deadline"),
+    ],
+  };
+}
+
+function previewDetail(deadlineMs, comment, deadlineType) {
+  return {
+    deadline_type: deadlineType,
+    comment,
+    deadline: new Date(deadlineMs).toISOString().slice(0, 19).replace("T", " "),
+    timezone: "UTC",
+    deadline_ms: deadlineMs,
+  };
+}
 
 function loadPreferences() {
   try {
@@ -76,6 +116,90 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
+function formatLocalTime(deadlineMs) {
+  const date = new Date(Number(deadlineMs));
+  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date).reduce((values, part) => ({ ...values, [part.type]: part.value }), {});
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  const offsetHours = String(Math.floor(absoluteOffset / 60)).padStart(2, "0");
+  const offsetRemainder = absoluteOffset % 60;
+  const zone = offsetMinutes === 0
+    ? "UTC"
+    : `UTC${sign}${offsetHours}${offsetRemainder ? `:${String(offsetRemainder).padStart(2, "0")}` : ""}`;
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${zone}`;
+}
+
+function formatOriginalTime(detail) {
+  const raw = String(detail.deadline || "").trim().replace("T", " ");
+  const zone = String(detail.timezone || "").trim();
+  return [raw, zone].filter(Boolean).join(" ");
+}
+
+function formatDeadlineType(value) {
+  const raw = String(value || "Deadline").trim();
+  const normalized = raw.toLowerCase().replaceAll("_", " ");
+  const labels = {
+    abstract: "Abstract deadline",
+    "abstract deadline": "Abstract deadline",
+    paper: "Submission deadline",
+    submission: "Submission deadline",
+    "submission deadline": "Submission deadline",
+    "摘要截止": "Abstract deadline",
+    "投稿截止": "Submission deadline",
+  };
+  return labels[normalized] || raw;
+}
+
+function conferenceHeading(deadline) {
+  const fallbackTitle = String(deadline.id || "Conference").replace(/\d+$/, "");
+  return [deadline.title || fallbackTitle, deadline.year].filter(Boolean).join(" ");
+}
+
+function detailsFor(deadline) {
+  const details = deadline.deadline_details || deadline.deadlines;
+  if (Array.isArray(details) && details.length) {
+    const sorted = [...details].sort((left, right) => Number(left.deadline_ms) - Number(right.deadline_ms));
+    const upcoming = sorted.filter((detail) => Number(detail.deadline_ms) > Date.now());
+    return upcoming.length ? upcoming : sorted;
+  }
+  return [{ deadline_type: deadline.deadline_type, deadline_ms: deadline.deadline_ms }];
+}
+
+function renderDeadlineDetails(deadline) {
+  deadlineDetailsTitle.textContent = conferenceHeading(deadline);
+  const details = detailsFor(deadline);
+  if (!details.length) {
+    deadlineDetailsList.innerHTML = '<div class="deadline-detail__empty">No deadline details available</div>';
+    return;
+  }
+
+  deadlineDetailsList.innerHTML = details.map((detail) => {
+    const comment = String(detail.comment || "").trim();
+    const type = formatDeadlineType(detail.deadline_type);
+    const originalTime = formatOriginalTime(detail);
+    const localTime = formatLocalTime(detail.deadline_ms);
+    const typeIsRepeated = comment && comment.toLowerCase().includes(type.toLowerCase().replace(" deadline", ""));
+    const heading = comment || type;
+    const kind = comment && !typeIsRepeated ? `<p class="deadline-detail__kind">${escapeHtml(type)}</p>` : "";
+    const original = originalTime
+      ? `<div class="deadline-detail__time"><span>Source</span><time>${escapeHtml(originalTime)}</time></div>`
+      : "";
+    return `<article class="deadline-detail"><h3 class="deadline-detail__name">${escapeHtml(heading)}</h3>${kind}<div class="deadline-detail__times">${original}<div class="deadline-detail__time"><span>Local</span><time>${escapeHtml(localTime)}</time></div></div></article>`;
+  }).join("");
+  deadlineDetailsList.scrollTop = 0;
+  scheduleFlyoutPosition();
+}
+
 function formatRemaining(deadlineMs) {
   const totalSeconds = Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000));
   const days = Math.floor(totalSeconds / 86400);
@@ -90,7 +214,15 @@ function formatRemaining(deadlineMs) {
 
 function row(deadline) {
   const displayId = deadline.id.toUpperCase();
-  return `<button class="deadline-row" type="button" data-url="${escapeHtml(deadline.link)}" aria-label="Open ${escapeHtml(displayId)} website"><span class="deadline-name">${escapeHtml(displayId)}</span><span class="deadline-remaining">${formatRemaining(deadline.deadline_ms)}</span></button>`;
+  const active = deadline.id === activeDeadlineId ? " deadline-row--active" : "";
+  return `<button class="deadline-row${active}" type="button" data-deadline-id="${escapeHtml(deadline.id)}" data-deadline-ms="${Number(deadline.deadline_ms)}" data-url="${escapeHtml(deadline.link)}" aria-label="Open ${escapeHtml(displayId)} website"><span class="deadline-name">${escapeHtml(displayId)}</span><span class="deadline-remaining">${formatRemaining(deadline.deadline_ms)}</span></button>`;
+}
+
+function updateCountdowns() {
+  document.querySelectorAll(".deadline-row[data-deadline-ms]").forEach((deadlineRow) => {
+    const remaining = deadlineRow.querySelector(".deadline-remaining");
+    if (remaining) remaining.textContent = formatRemaining(Number(deadlineRow.dataset.deadlineMs));
+  });
 }
 
 function visibleDeadlines() {
@@ -119,6 +251,12 @@ function render() {
     list.innerHTML = visible.slice(1).map(row).join("");
   }
 
+  if (activeDeadlineId) {
+    const activeDeadline = visible.find((deadline) => deadline.id === activeDeadlineId);
+    if (activeDeadline) renderDeadlineDetails(activeDeadline);
+    else closeDeadlineDetails();
+  }
+
   const allSelected = preferences.ranks.length === ccfRanks.length
     && preferences.coreRanks.length === coreRanks.length
     && preferences.thcplRanks.length === thcplRanks.length
@@ -130,7 +268,7 @@ function renderFilterGroups() {
   filterGroups.innerHTML = Object.entries(filterDefinitions).map(([type, definition]) => {
     const selected = preferences[definition.key].length;
     const summary = selected === definition.values.length ? "All" : selected === 0 ? "None" : `${selected}/${definition.values.length}`;
-    const active = flyoutLevel === 2 && type === currentFilterGroup ? " filter-group-row--active" : "";
+    const active = flyoutKind === "filters" && flyoutLevel === 2 && type === currentFilterGroup ? " filter-group-row--active" : "";
     return `<button class="filter-group-row${active}" type="button" data-filter-group="${type}"><span>${definition.title}</span><span class="filter-group-summary">${summary}</span><span class="chevron">›</span></button>`;
   }).join("");
 }
@@ -161,27 +299,109 @@ function showView(id) {
   document.querySelectorAll(".menu-view").forEach((view) => view.classList.toggle("menu-view--active", view.id === id));
 }
 
-function applyFlyoutLevel(level) {
-  flyoutLevel = level;
-  document.body.dataset.flyoutLevel = String(level);
-  renderFilterGroups();
+function positionFlyout(panel, anchor) {
+  if (!panel || !anchor || getComputedStyle(panel).display === "none") return;
+
+  const shellRect = popoverShell.getBoundingClientRect();
+  const anchorRect = anchor.getBoundingClientRect();
+  const headerHeight = panel.querySelector("header")?.offsetHeight || anchorRect.height;
+  const preferredTop = anchorRect.top + anchorRect.height / 2 - shellRect.top - headerHeight / 2;
+  const maxTop = Math.max(0, shellRect.height - panel.offsetHeight);
+  const top = Math.max(0, Math.min(preferredTop, maxTop));
+  panel.style.transform = `translateY(${Math.round(top)}px)`;
 }
 
-async function setFlyoutLevel(level) {
-  applyFlyoutLevel(level);
-  if (invoke) {
+function positionVisibleFlyouts() {
+  if (flyoutKind === "details") {
+    const anchor = [...document.querySelectorAll(".deadline-row[data-deadline-id]")]
+      .find((rowElement) => rowElement.dataset.deadlineId === activeDeadlineId);
+    positionFlyout(deadlineDetails, anchor);
+    return;
+  }
+
+  if (flyoutKind === "filters") {
+    positionFlyout(document.querySelector(".menu--groups"), openFiltersButton);
+    if (flyoutLevel === 2) {
+      positionFlyout(
+        document.querySelector(".menu--options"),
+        filterGroups.querySelector(`[data-filter-group="${currentFilterGroup}"]`),
+      );
+    }
+  }
+}
+
+function scheduleFlyoutPosition() {
+  window.requestAnimationFrame(positionVisibleFlyouts);
+}
+
+function applyFlyoutState(kind, level) {
+  flyoutKind = kind;
+  flyoutLevel = level;
+  document.body.dataset.flyoutKind = kind;
+  document.body.dataset.flyoutLevel = String(level);
+  renderFilterGroups();
+  scheduleFlyoutPosition();
+}
+
+async function setFlyoutState(kind, level) {
+  const needsResize = level !== flyoutLevel;
+  applyFlyoutState(kind, level);
+  if (invoke && needsResize) {
     try { await invoke("set_flyout_level", { level }); } catch {}
   }
+}
+
+function clearDetailsCloseTimer() {
+  window.clearTimeout(detailsCloseTimer);
+  detailsCloseTimer = undefined;
+}
+
+function syncActiveDeadlineRows() {
+  document.querySelectorAll(".deadline-row[data-deadline-id]").forEach((deadlineRow) => {
+    deadlineRow.classList.toggle("deadline-row--active", deadlineRow.dataset.deadlineId === activeDeadlineId);
+  });
+}
+
+function deactivateDeadlineDetails() {
+  clearDetailsCloseTimer();
+  activeDeadlineId = null;
+  syncActiveDeadlineRows();
+}
+
+function openDeadlineDetails(deadline) {
+  clearDetailsCloseTimer();
+  activeDeadlineId = deadline.id;
+  renderDeadlineDetails(deadline);
+  syncActiveDeadlineRows();
+  setFlyoutState("details", 1);
+}
+
+function closeDeadlineDetails() {
+  deactivateDeadlineDetails();
+  if (flyoutKind === "details") setFlyoutState("none", 0);
+}
+
+function scheduleDeadlineDetailsClose() {
+  clearDetailsCloseTimer();
+  detailsCloseTimer = window.setTimeout(closeDeadlineDetails, 120);
+}
+
+function openFilterFlyout(level) {
+  deactivateDeadlineDetails();
+  setFlyoutState("filters", level);
 }
 
 function openFilterGroup(group) {
   if (!filterDefinitions[group]) return;
   currentFilterGroup = group;
   renderFilterOptions();
-  setFlyoutLevel(2);
+  openFilterFlyout(2);
 }
 
-window.resetFilterFlyouts = () => applyFlyoutLevel(0);
+window.resetFilterFlyouts = () => {
+  deactivateDeadlineDetails();
+  applyFlyoutState("none", 0);
+};
 
 function renderAutostart() {
   autostartToggle.setAttribute("aria-checked", String(autostartEnabled));
@@ -219,17 +439,53 @@ async function loadDeadlines() {
   }
 }
 
-document.querySelector("#open-filters").addEventListener("pointerenter", () => setFlyoutLevel(1));
-document.querySelector("#open-filters").addEventListener("click", () => setFlyoutLevel(1));
-document.querySelector("#open-settings").addEventListener("pointerenter", () => setFlyoutLevel(0));
+openFiltersButton.addEventListener("pointerenter", () => openFilterFlyout(1));
+openFiltersButton.addEventListener("focus", () => openFilterFlyout(1));
+openFiltersButton.addEventListener("click", () => openFilterFlyout(1));
+document.querySelector("#open-settings").addEventListener("pointerenter", () => {
+  deactivateDeadlineDetails();
+  setFlyoutState("none", 0);
+});
 document.querySelector("#open-settings").addEventListener("click", () => {
-  setFlyoutLevel(0);
+  deactivateDeadlineDetails();
+  setFlyoutState("none", 0);
   showView("settings-view");
 });
 document.querySelectorAll("[data-back]").forEach((button) => button.addEventListener("click", () => {
-  setFlyoutLevel(0);
+  deactivateDeadlineDetails();
+  setFlyoutState("none", 0);
   showView("main-view");
 }));
+
+document.addEventListener("pointerover", (event) => {
+  const deadlineRow = event.target.closest(".deadline-row[data-deadline-id]");
+  if (!deadlineRow || deadlineRow.contains(event.relatedTarget)) return;
+  const deadline = deadlines.find((item) => item.id === deadlineRow.dataset.deadlineId);
+  if (deadline) openDeadlineDetails(deadline);
+});
+
+document.addEventListener("pointerout", (event) => {
+  const deadlineRow = event.target.closest(".deadline-row[data-deadline-id]");
+  if (!deadlineRow || deadlineRow.contains(event.relatedTarget)) return;
+  scheduleDeadlineDetailsClose();
+});
+
+document.addEventListener("focusin", (event) => {
+  const deadlineRow = event.target.closest(".deadline-row[data-deadline-id]");
+  if (!deadlineRow) return;
+  const deadline = deadlines.find((item) => item.id === deadlineRow.dataset.deadlineId);
+  if (deadline) openDeadlineDetails(deadline);
+});
+
+document.addEventListener("focusout", (event) => {
+  if (event.target.closest(".deadline-row[data-deadline-id]")) scheduleDeadlineDetailsClose();
+});
+
+deadlineDetails.addEventListener("pointerenter", clearDetailsCloseTimer);
+deadlineDetails.addEventListener("pointerleave", scheduleDeadlineDetailsClose);
+
+filterGroups.addEventListener("pointerenter", () => openFilterFlyout(Math.max(1, flyoutLevel)));
+filterOptions.addEventListener("pointerenter", () => openFilterFlyout(2));
 
 filterGroups.addEventListener("pointerover", (event) => {
   const button = event.target.closest("[data-filter-group]");
@@ -300,6 +556,8 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+document.addEventListener("contextmenu", (event) => event.preventDefault());
+
 document.addEventListener("pointerenter", () => invoke?.("set_window_hovered", { hovered: true }));
 document.addEventListener("pointerleave", () => invoke?.("set_window_hovered", { hovered: false }));
 
@@ -311,7 +569,8 @@ window.addEventListener("DOMContentLoaded", () => {
   loadDeadlines();
   loadAutostart();
   refreshTimer = window.setInterval(loadDeadlines, 10 * 60 * 1000);
-  countdownTimer = window.setInterval(render, 1000);
+  countdownTimer = window.setInterval(updateCountdowns, 1000);
 });
 
 window.addEventListener("beforeunload", () => { window.clearInterval(refreshTimer); window.clearInterval(countdownTimer); });
+window.addEventListener("resize", scheduleFlyoutPosition);

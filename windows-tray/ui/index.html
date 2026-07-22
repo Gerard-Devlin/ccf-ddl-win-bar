@@ -7,8 +7,16 @@
     <title>CCF Deadlines</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body data-flyout-level="0">
+  <body data-flyout-kind="none" data-flyout-level="0">
     <main class="popover-shell">
+      <aside class="menu menu--flyout menu--details" id="deadline-details" aria-label="Conference deadlines" aria-live="polite">
+        <header class="deadline-details__header">
+          <span>Deadlines</span>
+          <strong id="deadline-details-title"></strong>
+        </header>
+        <div class="deadline-details__scroll" id="deadline-details-list"></div>
+      </aside>
+
       <aside class="menu menu--flyout menu--options" aria-label="Filter options">
         <header class="flyout-header"><strong id="filter-options-title">CCF Rank</strong></header>
         <div class="submenu-scroll" id="filter-options"></div>
