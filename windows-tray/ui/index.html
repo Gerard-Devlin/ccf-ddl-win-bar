@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>CCF Deadlines</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-flyout-level="0">
+    <main class="popover-shell">
+      <aside class="menu menu--flyout menu--options" aria-label="Filter options">
+        <header class="flyout-header"><strong id="filter-options-title">CCF Rank</strong></header>
+        <div class="submenu-scroll" id="filter-options"></div>
+      </aside>
+
+      <aside class="menu menu--flyout menu--groups" aria-label="Filter groups">
+        <header class="flyout-header"><strong>Filter</strong></header>
+        <div class="filter-groups" id="filter-groups"></div>
+      </aside>
+
+      <section class="menu menu--primary" aria-live="polite">
+      <div class="menu-view menu-view--active" id="main-view">
+        <section class="menu-section menu-section--next">
+          <h1>Next</h1>
+          <div id="next-deadline" class="deadline-list">
+            <div class="deadline-row deadline-row--loading"><span></span><span></span></div>
+          </div>
+        </section>
+
+        <div class="separator" aria-hidden="true"></div>
+
+        <section class="menu-section menu-section--upcoming">
+          <h2>Upcoming</h2>
+          <div id="deadline-list" class="deadline-list" aria-label="Upcoming conferences">
+            <div class="deadline-row deadline-row--loading"><span></span><span></span></div>
+            <div class="deadline-row deadline-row--loading"><span></span><span></span></div>
+            <div class="deadline-row deadline-row--loading"><span></span><span></span></div>
+            <div class="deadline-row deadline-row--loading"><span></span><span></span></div>
+          </div>
+        </section>
+
+        <div class="separator" aria-hidden="true"></div>
+
+        <nav class="menu-actions" aria-label="Options">
+          <button class="menu-action" id="open-filters" type="button">
+            <span>Filter</span><span class="menu-action__value" id="filter-summary">All</span><span class="chevron">›</span>
+          </button>
+          <button class="menu-action" id="open-settings" type="button">
+            <span>Display</span><span class="chevron">›</span>
+          </button>
+        </nav>
+      </div>
+
+      <div class="menu-view" id="settings-view">
+        <header class="submenu-header">
+          <button class="back-button" type="button" data-back aria-label="Back">‹</button>
+          <strong>Display</strong>
+        </header>
+        <section class="settings-section">
+          <h2>List</h2>
+          <label class="setting-row">
+            <span>Deadline range</span>
+            <select id="within-days">
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="180">180 days</option>
+              <option value="365">365 days</option>
+            </select>
+          </label>
+          <label class="setting-row">
+            <span>Items shown</span>
+            <select id="display-count">
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+          <button class="setting-row setting-row--toggle" id="autostart-toggle" type="button" role="switch" aria-checked="false">
+            <span>Launch at startup</span>
+            <span class="toggle-switch" aria-hidden="true"><span class="toggle-switch__thumb"></span></span>
+          </button>
+        </section>
+        <div class="separator" aria-hidden="true"></div>
+        <button class="reset-button" id="reset-settings" type="button">Reset defaults</button>
+      </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
