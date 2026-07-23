@@ -1,129 +1,173 @@
+<div align="center">
+
 # CCF Deadlines Tray for Windows
 
-An unofficial, lightweight Windows system-tray companion for [CCF Deadlines](https://ccfddl.com/). Hover over the tray icon to check the next conference deadlines, then move away to dismiss it. There is no conventional main window and no local conference database to maintain.
+A lightweight Windows system-tray companion for tracking upcoming computer-science conference deadlines.
 
-![CCF Deadlines Tray preview](docs/preview.png)
+[![Build Windows installer](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/actions/workflows/build.yml/badge.svg)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/Gerard-Devlin/ccf-ddl-win-bar?display_name=tag&sort=semver)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Gerard-Devlin/ccf-ddl-win-bar/total)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases)
+[![License](https://img.shields.io/github/license/Gerard-Devlin/ccf-ddl-win-bar)](LICENSE)
+![Windows 10 and 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white)
+![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
 
-## Features
+[Download](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/latest) ·
+[Report a bug](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/issues/new) ·
+[CCF Deadlines](https://ccfddl.com/)
 
-- Opens on tray hover and closes automatically when the pointer leaves.
-- Shows the next deadline plus a scrollable list of upcoming conferences.
-- Shows all upcoming abstract and submission deadlines for a conference when you hover over its row, with both source and local times.
-- Updates countdowns every second.
-- Refreshes conference data from CCF Deadlines every 10 minutes.
-- Filters by CCF rank, CORE rank, THCPL rank, and research area.
-- Lets you choose the deadline range and number of visible items.
-- Opens the selected conference's official website in your default browser.
-- Supports system, dark, and light color modes.
-- Supports launch at Windows startup.
-- Works with different taskbar positions and multi-monitor layouts.
+<sub>Unofficial community extension. Conference data is provided by the upstream CCF Deadlines project.</sub>
 
-## Requirements
+</div>
+
+![CCF Deadlines Tray showing upcoming conferences and deadline details](docs/preview.png)
+
+## Overview
+
+CCF Deadlines Tray keeps the next conference deadlines one hover away. It lives in the Windows notification area, opens a compact deadline panel when the pointer reaches the tray icon, and disappears when the pointer moves away.
+
+There is no conventional main window and no bundled conference database. The application reads the dataset published by [CCF Deadlines](https://github.com/ccfddl/ccf-deadlines), converts deadline time zones locally, and keeps countdowns accurate to the second.
+
+## Highlights
+
+- **Hover-first tray experience** — check deadlines without opening a full desktop window.
+- **Live countdowns** — remaining time updates every second.
+- **Complete deadline details** — inspect abstract, submission, cycle, source-time, and local-time information.
+- **Fast filtering** — filter by CCF, CORE, THCPL, and research area.
+- **Direct conference links** — select a conference to open its official website.
+- **Flexible display** — choose the date range, visible item count, and system, dark, or light appearance.
+- **Windows integration** — optional launch at startup, single-instance behavior, multi-monitor support, and taskbar-aware placement.
+- **No accounts or telemetry** — preferences remain on the current Windows account.
+
+## Install
+
+### Installer
+
+1. Download the newest NSIS installer from [GitHub Releases](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/latest).
+2. Run the installer.
+3. Find **CCF Deadlines** in the Windows notification area. If Windows hides the icon, open the tray overflow menu and pin it.
+
+Community builds are currently unsigned, so Windows SmartScreen may ask for confirmation. The installer uses the current-user installation mode and does not require administrator access.
+
+### Requirements
 
 - Windows 10 or Windows 11
-- An internet connection for conference data
-- Microsoft Edge WebView2 Runtime (included with current Windows installations; the installer can download it when needed)
+- An internet connection for refreshing conference data
+- Microsoft Edge WebView2 Runtime
 
-To build from source, you also need:
+WebView2 is included with current Windows installations. When it is missing, the installer can download the bootstrapper automatically.
 
-- [Rust](https://www.rust-lang.org/tools/install) with the `x86_64-pc-windows-msvc` target
-- [Microsoft Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the **Desktop development with C++** workload, MSVC toolchain, and Windows SDK
+## Use
 
-## Run from source
+1. Hover over the tray icon to show the deadline panel.
+2. Move the pointer into the panel to keep it open.
+3. Hover over a conference row to see every upcoming deadline in both its source timezone and your local timezone.
+4. Select a conference to open its official website.
+5. Use **Filter** to narrow the list by ranking system or research area.
+6. Use **Display** to change the date range, item count, color mode, or startup behavior.
+7. Right-click the tray icon and choose **Exit CCF Deadlines** to quit.
 
-Download or clone this repository, open PowerShell in its root directory, and run:
+## Filters and display
 
-```powershell
-cargo run --manifest-path .\windows-tray\src-tauri\Cargo.toml
-```
-
-The application starts directly in the Windows notification area. If the icon is hidden, open the tray overflow menu or pin it through Windows taskbar settings.
-
-## Build the Windows installer
-
-Install the Tauri CLI once:
-
-```powershell
-cargo install tauri-cli --version "^2" --locked
-```
-
-Then build the NSIS installer:
-
-```powershell
-cd windows-tray
-cargo tauri build
-```
-
-The installer is written to:
-
-```text
-windows-tray\src-tauri\target\release\bundle\nsis\
-```
-
-## Usage
-
-1. Start the application and locate **CCF Deadlines** in the notification area.
-2. Hover over the icon to show the deadline panel.
-3. Move the pointer into the panel to keep it open.
-4. Hover over a conference row to inspect its abstract, submission, and cycle deadlines in the source timezone and your local timezone.
-5. Select a conference row to open its official website.
-6. Use **Filter** to narrow the list by ranking system or research area.
-7. Use **Display** to change the deadline range, item count, or startup behavior.
-8. Right-click the tray icon and choose **Exit CCF Deadlines** to quit.
-
-## Filters and display settings
-
-| Setting | Options |
+| Setting | Available options |
 | --- | --- |
 | CCF Rank | A, B, C, Non-CCF |
 | CORE Rank | A\*, A, B, C, Non-CORE |
 | THCPL Rank | A, B, Non-THCPL |
 | Research Area | AI, databases, software engineering, security, graphics, systems, networks, theory, HCI, and interdisciplinary topics |
-| Deadline range | 30, 90, 180, or 365 days |
-| Items shown | 3, 4, 5, 10, 20, or 50 |
-| Color mode | System, Dark, or Light |
-| Launch at startup | On or off |
+| Deadline Range | 30, 90, 180, or 365 days |
+| Items Shown | 3, 4, 5, 10, 20, or 50 |
+| Color Mode | System, Dark, or Light |
+| Launch at Startup | On or Off |
 
-Filter and display preferences are stored locally on the current Windows account.
+Filter and display preferences are stored locally for the current Windows account.
 
-## Data and refresh behavior
+## Data and privacy
 
-The application downloads the combined conference YAML from:
+The application downloads the combined conference dataset from:
 
 1. `https://ccfddl.com/conference/allconf.yml`
-2. `https://ccfddl.github.io/conference/allconf.yml`, attempted if the first endpoint fails
+2. `https://ccfddl.github.io/conference/allconf.yml` as a fallback
 
-Data is fetched when the application starts and every 10 minutes afterward. Countdown values are calculated locally and refreshed once per second. Expired deadlines are removed, and only the nearest future deadline for each conference edition is shown.
+Data is fetched when the application starts and refreshed every 10 minutes. Countdown values are calculated locally and refreshed once per second. Expired deadlines are omitted, and only the nearest future deadline for each conference edition is shown in the main list.
 
-The application does not upload personal data. Opening a conference launches its official URL in the system browser.
+The application has no account system, analytics, advertising, or telemetry. It does not upload personal information. Selecting a conference only opens its official URL in the default browser.
+
+## Run from source
+
+Install the following development tools:
+
+- [Rust](https://www.rust-lang.org/tools/install) with the `x86_64-pc-windows-msvc` target
+- [Microsoft Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++**, MSVC, and a Windows SDK
+- Microsoft Edge WebView2 Runtime
+
+Clone the repository and run:
+
+```powershell
+git clone https://github.com/Gerard-Devlin/ccf-ddl-win-bar.git
+cd ccf-ddl-win-bar
+cargo run --manifest-path .\windows-tray\src-tauri\Cargo.toml
+```
+
+## Build and test
+
+Install the Tauri CLI:
+
+```powershell
+cargo install tauri-cli --version "=2.11.4" --locked
+```
+
+Run the Rust test suite:
+
+```powershell
+cargo test --manifest-path .\windows-tray\src-tauri\Cargo.toml --locked
+```
+
+Build the NSIS installer:
+
+```powershell
+cd windows-tray
+cargo tauri build --bundles nsis --ci --no-sign -- --locked
+```
+
+The installer is generated under:
+
+```text
+windows-tray\src-tauri\target\release\bundle\nsis\
+```
+
+The [Windows build workflow](.github/workflows/build.yml) runs the same tests and installer build on every push and pull request. Successful runs publish the installer as a GitHub Actions artifact.
 
 ## Project structure
 
 ```text
-windows-tray/
-|-- src-tauri/       Rust/Tauri backend, tray integration, networking, and autostart
-`-- ui/              HTML, CSS, and JavaScript for the hover panel
+.
+|-- .github/
+|   `-- workflows/
+|       `-- build.yml       Windows test and installer workflow
+|-- docs/
+|   `-- preview.png         Project preview
+|-- windows-tray/
+|   |-- src-tauri/          Rust backend, tray integration, networking, and packaging
+|   `-- ui/                 HTML, CSS, and JavaScript for the popover interface
+|-- LICENSE
+`-- README.md
 ```
 
-This repository intentionally contains only the Windows tray application. It consumes the dataset published by the upstream CCF Deadlines project instead of bundling the website, conference YAML, CLI, calendar, or browser-extension sources.
-
-## Tests
-
-Run the Rust tests from the repository root:
-
-```powershell
-cargo test --manifest-path .\windows-tray\src-tauri\Cargo.toml
-```
+This repository intentionally contains only the Windows tray extension. Website code, conference records, calendar feeds, and other extensions remain in the upstream [ccfddl/ccf-deadlines](https://github.com/ccfddl/ccf-deadlines) repository.
 
 ## Contributing
 
-- For Windows tray bugs or interface changes, open an issue or pull request in this repository.
-- For incorrect conference dates, ranks, or links, contribute to the [upstream CCF Deadlines repository](https://github.com/ccfddl/ccf-deadlines).
+Issues and pull requests are welcome.
 
-## Credits
+- Report Windows tray bugs and interface requests in [this repository](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/issues).
+- Submit incorrect conference dates, rankings, or links to the [upstream CCF Deadlines repository](https://github.com/ccfddl/ccf-deadlines).
+- Keep pull requests focused and include screenshots for visible interface changes.
+- Run the Rust tests before submitting code changes.
 
-- Conference data: [CCF Deadlines](https://github.com/ccfddl/ccf-deadlines)
-- Desktop framework: [Tauri](https://tauri.app/)
+## Acknowledgements
+
+- [CCF Deadlines](https://github.com/ccfddl/ccf-deadlines) for the conference dataset and the original project.
+- [Tauri](https://tauri.app/) for the lightweight Windows desktop framework.
 
 ## License
 
