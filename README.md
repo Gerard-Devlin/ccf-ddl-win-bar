@@ -1,12 +1,10 @@
 <div align="center">
 
-# CCF Deadlines Tray for Windows
+# CCF DDL Tray
 
 A lightweight Windows system-tray companion for tracking upcoming computer-science conference deadlines.
 
-[![Build Windows installer](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/actions/workflows/build.yml/badge.svg)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/actions/workflows/build.yml)
 [![Latest release](https://img.shields.io/github/v/release/Gerard-Devlin/ccf-ddl-win-bar?display_name=tag&sort=semver)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Gerard-Devlin/ccf-ddl-win-bar/total)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases)
 [![License](https://img.shields.io/github/license/Gerard-Devlin/ccf-ddl-win-bar)](LICENSE)
 ![Windows 10 and 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white)
 ![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
@@ -68,16 +66,16 @@ WebView2 is included with current Windows installations. When it is missing, the
 
 ## Filters and display
 
-| Setting | Available options |
-| --- | --- |
-| CCF Rank | A, B, C, Non-CCF |
-| CORE Rank | A\*, A, B, C, Non-CORE |
-| THCPL Rank | A, B, Non-THCPL |
-| Research Area | AI, databases, software engineering, security, graphics, systems, networks, theory, HCI, and interdisciplinary topics |
-| Deadline Range | 30, 90, 180, or 365 days |
-| Items Shown | 3, 4, 5, 10, 20, or 50 |
-| Color Mode | System, Dark, or Light |
-| Launch at Startup | On or Off |
+| Setting           | Available options                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| CCF Rank          | A, B, C, Non-CCF                                                                                                      |
+| CORE Rank         | A\*, A, B, C, Non-CORE                                                                                                |
+| THCPL Rank        | A, B, Non-THCPL                                                                                                       |
+| Research Area     | AI, databases, software engineering, security, graphics, systems, networks, theory, HCI, and interdisciplinary topics |
+| Deadline Range    | 30, 90, 180, or 365 days                                                                                              |
+| Items Shown       | 3, 4, 5, 10, 20, or 50                                                                                                |
+| Color Mode        | System, Dark, or Light                                                                                                |
+| Launch at Startup | On or Off                                                                                                             |
 
 Filter and display preferences are stored locally for the current Windows account.
 
