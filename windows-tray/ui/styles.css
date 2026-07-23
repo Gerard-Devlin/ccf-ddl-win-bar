@@ -1,13 +1,53 @@
 :root {
   color: #f2f2f2;
+  color-scheme: dark;
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
   --menu: #202020;
+  --menu-border: #2b2b2b;
   --hover: #383838;
   --border: #505050;
+  --item-border: #404040;
   --text: #f2f2f2;
   --muted: #a7b6c2;
   --disabled: #858585;
+  --secondary-text: #b8b8b8;
+  --time-text: #dcdcdc;
+  --scrollbar: #5a5a5a;
+  --accent: #8fc8ef;
+  --toggle-track: #555;
+  --toggle-thumb: #f4f4f4;
+  --toggle-on: #4f9bc7;
+  --control-border: #4c4c4c;
+  --control-background: #2b2b2b;
+  --focus: #7fb8dd;
+  --reset: #efb0a8;
+  --loading: #363636;
+}
+
+:root[data-theme="light"] {
+  color: #1f1f1f;
+  color-scheme: light;
+  --menu: #f3f3f3;
+  --menu-border: #cdcdcd;
+  --hover: #e2e2e2;
+  --border: #c9c9c9;
+  --item-border: #d8d8d8;
+  --text: #1f1f1f;
+  --muted: #586773;
+  --disabled: #777;
+  --secondary-text: #5f5f5f;
+  --time-text: #333;
+  --scrollbar: #9b9b9b;
+  --accent: #0067c0;
+  --toggle-track: #8a8a8a;
+  --toggle-thumb: #fff;
+  --toggle-on: #0067c0;
+  --control-border: #b8b8b8;
+  --control-background: #fff;
+  --focus: #0067c0;
+  --reset: #a4262c;
+  --loading: #dedede;
 }
 
 * {
@@ -42,7 +82,7 @@ body {
   height: 100%;
   flex: 0 0 236px;
   overflow: hidden;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--menu-border);
   border-radius: 8px;
   background: var(--menu);
   box-shadow: none;
@@ -103,7 +143,7 @@ body[data-flyout-kind="filters"][data-flyout-level="2"] .menu--options {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-color: #5a5a5a transparent;
+  scrollbar-color: var(--scrollbar) transparent;
   scrollbar-width: thin;
 }
 
@@ -113,7 +153,7 @@ body[data-flyout-kind="filters"][data-flyout-level="2"] .menu--options {
 }
 
 .deadline-detail + .deadline-detail {
-  border-top: 1px solid #404040;
+  border-top: 1px solid var(--item-border);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -156,7 +196,7 @@ body[data-flyout-kind="filters"][data-flyout-level="2"] .menu--options {
 }
 
 .deadline-detail__time time {
-  color: #dcdcdc;
+  color: var(--time-text);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -215,7 +255,7 @@ body[data-flyout-kind="filters"][data-flyout-level="2"] .menu--options {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-color: #5a5a5a transparent;
+  scrollbar-color: var(--scrollbar) transparent;
   scrollbar-width: thin;
 }
 
@@ -269,7 +309,7 @@ body[data-flyout-kind="details"] .deadline-row--active {
 }
 
 .deadline-remaining {
-  color: #b8b8b8;
+  color: var(--secondary-text);
   font-variant-numeric: tabular-nums;
   font-weight: 400;
   text-align: right;
@@ -387,7 +427,7 @@ body[data-flyout-kind="filters"][data-flyout-level="2"] #open-filters,
   padding: 4px;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-color: #5a5a5a transparent;
+  scrollbar-color: var(--scrollbar) transparent;
   scrollbar-width: thin;
 }
 
@@ -426,7 +466,7 @@ body[data-flyout-kind="filters"][data-flyout-level="2"] #open-filters,
 
 .filter-check {
   width: 18px;
-  color: #8fc8ef;
+  color: var(--accent);
   font-size: 15px;
   text-align: center;
 }
@@ -460,19 +500,19 @@ body[data-flyout-kind="filters"][data-flyout-level="2"] #open-filters,
   padding: 2px;
   border-radius: 999px;
   align-items: center;
-  background: #555;
+  background: var(--toggle-track);
 }
 
 .toggle-switch__thumb {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #f4f4f4;
+  background: var(--toggle-thumb);
   transform: translateX(0);
 }
 
 .setting-row--toggle[aria-checked="true"] .toggle-switch {
-  background: #4f9bc7;
+  background: var(--toggle-on);
 }
 
 .setting-row--toggle[aria-checked="true"] .toggle-switch__thumb {
@@ -482,28 +522,28 @@ body[data-flyout-kind="filters"][data-flyout-level="2"] #open-filters,
 .setting-row select {
   min-width: 76px;
   padding: 3px 20px 3px 6px;
-  border: 1px solid #4c4c4c;
+  border: 1px solid var(--control-border);
   border-radius: 5px;
   outline: none;
-  background: #2b2b2b;
+  background: var(--control-background);
   color: var(--text);
 }
 
 .setting-row select:focus {
-  border-color: #7fb8dd;
+  border-color: var(--focus);
 }
 
 .reset-button {
   width: calc(100% - 8px);
   margin: 4px;
-  color: #efb0a8;
+  color: var(--reset);
 }
 
 .deadline-row--loading span {
   width: 86px;
   height: 10px;
   border-radius: 4px;
-  background: #363636;
+  background: var(--loading);
 }
 
 .deadline-row--loading span:last-child {

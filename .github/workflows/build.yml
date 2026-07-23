@@ -1,0 +1,51 @@
+name: Build Windows installer
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-windows:
+    name: Windows NSIS
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: windows-tray/src-tauri -> target
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "=2.11.4" --locked
+
+      - name: Test
+        run: cargo test --manifest-path windows-tray/src-tauri/Cargo.toml --locked
+
+      - name: Build NSIS installer
+        working-directory: windows-tray
+        run: cargo tauri build --bundles nsis --ci --no-sign -- --locked
+
+      - name: Upload NSIS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: CCF-Deadlines-Tray-Windows-NSIS
+          path: windows-tray/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

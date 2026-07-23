@@ -2,6 +2,8 @@
 
 An unofficial, lightweight Windows system-tray companion for [CCF Deadlines](https://ccfddl.com/). Hover over the tray icon to check the next conference deadlines, then move away to dismiss it. There is no conventional main window and no local conference database to maintain.
 
+![CCF Deadlines Tray preview](docs/preview.png)
+
 ## Features
 
 - Opens on tray hover and closes automatically when the pointer leaves.
@@ -12,6 +14,7 @@ An unofficial, lightweight Windows system-tray companion for [CCF Deadlines](htt
 - Filters by CCF rank, CORE rank, THCPL rank, and research area.
 - Lets you choose the deadline range and number of visible items.
 - Opens the selected conference's official website in your default browser.
+- Supports system, dark, and light color modes.
 - Supports launch at Windows startup.
 - Works with different taskbar positions and multi-monitor layouts.
 
@@ -78,6 +81,7 @@ windows-tray\src-tauri\target\release\bundle\nsis\
 | Research Area | AI, databases, software engineering, security, graphics, systems, networks, theory, HCI, and interdisciplinary topics |
 | Deadline range | 30, 90, 180, or 365 days |
 | Items shown | 3, 4, 5, 10, 20, or 50 |
+| Color mode | System, Dark, or Light |
 | Launch at startup | On or off |
 
 Filter and display preferences are stored locally on the current Windows account.
@@ -101,7 +105,7 @@ windows-tray/
 `-- ui/              HTML, CSS, and JavaScript for the hover panel
 ```
 
-The remaining web application, conference YAML files, CLI, calendar, and browser-extension sources come from the upstream CCF Deadlines project. The Windows tray application consumes the published online dataset rather than bundling those files.
+This repository intentionally contains only the Windows tray application. It consumes the dataset published by the upstream CCF Deadlines project instead of bundling the website, conference YAML, CLI, calendar, or browser-extension sources.
 
 ## Tests
 

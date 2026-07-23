@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark light" />
     <title>CCF Deadlines</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -66,6 +66,15 @@
           <strong>Display</strong>
         </header>
         <section class="settings-section">
+          <h2>Appearance</h2>
+          <label class="setting-row">
+            <span>Color mode</span>
+            <select id="color-mode">
+              <option value="system">System</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
           <h2>List</h2>
           <label class="setting-row">
             <span>Deadline range</span>

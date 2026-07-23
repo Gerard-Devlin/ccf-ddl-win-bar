@@ -462,6 +462,9 @@ fn main() {
     let hover_state = Arc::new(HoverState::default());
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(
+            |_app, _args, _working_directory| {},
+        ))
         .manage(Arc::clone(&hover_state))
         .invoke_handler(tauri::generate_handler![
             fetch_deadlines,

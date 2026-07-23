@@ -11,8 +11,10 @@ const popoverShell = document.querySelector(".popover-shell");
 const openFiltersButton = document.querySelector("#open-filters");
 const withinDays = document.querySelector("#within-days");
 const displayCount = document.querySelector("#display-count");
+const colorMode = document.querySelector("#color-mode");
 const autostartToggle = document.querySelector("#autostart-toggle");
 const invoke = window.__TAURI__?.core?.invoke;
+const systemColorScheme = window.matchMedia("(prefers-color-scheme: dark)");
 
 const ccfRanks = ["A", "B", "C", "N"];
 const coreRanks = ["A*", "A", "B", "C", "N"];
@@ -29,6 +31,7 @@ const defaults = {
   categories: categories.map(([code]) => code),
   withinDays: 365,
   displayCount: 20,
+  colorMode: "system",
   scrollableListVersion: 1,
 };
 
@@ -106,10 +109,22 @@ function loadPreferences() {
 
 function savePreferences() {
   localStorage.setItem("ccf-tray-preferences", JSON.stringify(preferences));
+  applyColorMode();
   renderFilterGroups();
   renderFilterOptions();
   render();
 }
+
+function applyColorMode() {
+  const supportedModes = ["system", "dark", "light"];
+  const selectedMode = supportedModes.includes(preferences.colorMode) ? preferences.colorMode : defaults.colorMode;
+  const resolvedMode = selectedMode === "system" ? (systemColorScheme.matches ? "dark" : "light") : selectedMode;
+  preferences.colorMode = selectedMode;
+  document.documentElement.dataset.theme = resolvedMode;
+  colorMode.value = selectedMode;
+}
+
+applyColorMode();
 
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
@@ -510,6 +525,10 @@ filterOptions.addEventListener("click", (event) => {
 
 withinDays.addEventListener("change", () => { preferences.withinDays = Number(withinDays.value); savePreferences(); });
 displayCount.addEventListener("change", () => { preferences.displayCount = Number(displayCount.value); savePreferences(); });
+colorMode.addEventListener("change", () => { preferences.colorMode = colorMode.value; savePreferences(); });
+systemColorScheme.addEventListener("change", () => {
+  if (preferences.colorMode === "system") applyColorMode();
+});
 autostartToggle.addEventListener("click", async () => {
   if (autostartBusy) return;
   const nextValue = !autostartEnabled;
@@ -564,6 +583,7 @@ document.addEventListener("pointerleave", () => invoke?.("set_window_hovered", {
 window.addEventListener("DOMContentLoaded", () => {
   withinDays.value = String(preferences.withinDays);
   displayCount.value = String(preferences.displayCount);
+  colorMode.value = preferences.colorMode;
   renderFilterGroups();
   renderFilterOptions();
   loadDeadlines();
