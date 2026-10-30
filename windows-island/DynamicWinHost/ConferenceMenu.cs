@@ -1,6 +1,6 @@
-// Content adaptation of Florian Butz's DynamicWin main UI.
+// CCF content and interaction adaptation of Florian Butz's DynamicWin main UI.
+// Original black shell, Inter fonts, palette and spring classes remain in Upstream/DynamicWin.
 // Source: 9f24d176a16333b1cfda21dd3ed48087497194ed, CC BY-SA 4.0.
-// HomeMenu.cs / MediaWidget.cs geometry, fonts, primitives and button motion are retained.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -10,9 +10,7 @@ using CcfDeadlineIsland.Services;
 using DynamicWin.Main;
 using DynamicWin.Resources;
 using DynamicWin.UI;
-using DynamicWin.UI.Menu.Menus;
 using DynamicWin.UI.UIElements;
-using DynamicWin.UI.Widgets;
 using DynamicWin.Utils;
 using SkiaSharp;
 
@@ -42,245 +40,275 @@ public sealed class ConferenceMenu : IIslandMenu
     private readonly IslandObject _island;
     private readonly ConferenceModel _model;
     private readonly UIObject _compactContainer;
-    private readonly UIObject _topContainer;
-    private readonly UIObject _listContainer;
     private readonly DWText _compactTitle;
     private readonly DWText _compactCountdown;
-    private readonly DWTextImageButton _widgetButton;
-    private readonly DWTextImageButton _listButton;
-    private readonly ConferenceCard _card;
-    private readonly List<UIObject> _expanded = new();
-    private readonly List<UIObject> _listObjects = new();
-    private readonly List<UIObject> _settingsObjects = new();
-    private readonly List<DeadlineCard> _detailCards = new();
-    private readonly List<ConferenceListRow> _listRows = new();
-    private readonly DWText _listEmpty;
-    private readonly DWText _listPage;
-    private readonly DWText _detailPage;
-    private readonly DWText _settingsStatus;
-    private readonly DWTextButton[] _rankButtons;
-    private readonly Checkbox _submissionOnly;
-    private readonly Checkbox _animations;
+    private readonly Dictionary<string, List<UIObject>> _pages = new();
+    private readonly List<UIObject> _navigation = new();
+    private readonly Dictionary<string, MenuButton> _buttons = new();
+    private readonly ConferenceRow[] _upcomingRows = new ConferenceRow[3];
+    private readonly ConferenceRow[] _listRows = new ConferenceRow[5];
+    private readonly Dictionary<string, ToggleButton> _ranks = new();
+    private readonly Dictionary<int, ToggleButton> _ranges = new();
+    private readonly ToggleButton _submission;
+    private readonly ToggleButton _animations;
+    private readonly Label _empty;
+    private readonly Label _status;
+    private readonly Label _pageNumber;
+    private readonly Label _detailTitle;
+    private readonly Label _detailPage;
+    private readonly DeadlinePanel[] _detailPanels = new DeadlinePanel[2];
+    private readonly MenuButton _refresh;
+    private readonly MenuButton _emptyAction;
+    private readonly MenuButton _previousDeadlines;
+    private readonly MenuButton _nextDeadlines;
+    private string _selectedId = "";
+    private string _returnPage = "widgets";
+    private string _detailsReturnPage = "widgets";
     private int _listOffset;
     private int _detailOffset;
     private int _detailTotal;
-    private string _detailConferenceId = "";
-    private string _detailKey = "";
 
     public List<UIObject> UiObjects { get; } = new();
+    public Dictionary<string, UIObject> Controls { get; } = new();
     public string Page { get; private set; } = "widgets";
     public Action<string>? PageChanged { get; set; }
-    public DeadlineRow? Selected => _model.Rows.Count == 0 ? null : _model.Rows[Math.Clamp(_model.SelectedIndex, 0, _model.Rows.Count - 1)];
+    public DeadlineRow? Selected => Page == "details" && _selectedId.Length > 0
+        ? _model.Rows.FirstOrDefault(row => row.Id == _selectedId)
+        : _model.Rows.ElementAtOrDefault(Math.Clamp(_model.SelectedIndex, 0, Math.Max(0, _model.Rows.Count - 1)));
 
     public ConferenceMenu(IslandObject island, ConferenceModel model)
     {
         _island = island;
         _model = model;
-
-        // HomeMenu's compact container and original 35px small-widget content inset.
+        foreach (string page in new[] { "widgets", "list", "details", "filters", "display" }) _pages[page] = new();
         _compactContainer = new UIObject(island, Vec2.zero, IslandSize() - 35, UIAlignment.Center) { Color = Col.Transparent };
         _compactTitle = new DWText(_compactContainer, "CCF", Vec2.zero, UIAlignment.MiddleLeft)
-        {
-            Anchor = new Vec2(0, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextMain
-        };
+            { Anchor = new Vec2(0, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextMain };
         _compactCountdown = new DWText(_compactContainer, "--", Vec2.zero, UIAlignment.MiddleRight)
-        {
-            Anchor = new Vec2(1, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextSecond
-        };
-        UiObjects.Add(_compactTitle);
-        UiObjects.Add(_compactCountdown);
+            { Anchor = new Vec2(1, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextSecond };
+        UiObjects.Add(_compactTitle); UiObjects.Add(_compactCountdown);
 
-        // These dimensions/positions are HomeMenu's original Widgets / Tray / gear strip.
-        _topContainer = new UIObject(island, new Vec2(0, 30), new Vec2(island.currSize.X, 30)) { Color = Col.Transparent };
-        _widgetButton = MakeTab(Res.Widgets, "CCF", 42.5f, 75, 28.5f, () => ShowPage("widgets"));
-        _listButton = MakeTab(Res.Tray, "List", 112.5f, 57.5f, 27.5f, () => ShowPage("list"));
-        AddExpanded(_widgetButton);
-        AddExpanded(_listButton);
-        var settings = new DWImageButton(_topContainer, Res.Settings, new Vec2(-20, 0), new Vec2(20, 20), () => ShowPage("settings"), UIAlignment.MiddleRight)
-        {
-            normalColor = Col.Transparent, hoverColor = Col.Transparent,
-            clickColor = Theme.Primary.Override(a: 0.35f), roundRadius = 25
-        };
-        AddExpanded(settings);
+        Nav("nav.upcoming", "Upcoming", 14, 84, () => ShowPage("widgets"));
+        Nav("nav.all", "All", 102, 40, () => ShowPage("list"));
+        Nav("nav.filters", "Filter", 202, 54, () => ShowPage("filters"));
+        var display = Button("nav.display", "", 272, 14, 28, 26, () => ShowPage("display"));
+        display.Icon = Res.Settings; display.ActionName = "Display settings"; _navigation.Add(display);
 
-        _card = new ConferenceCard(island, model, () => SelectRelative(-1), () => ShowPage("details"), () => SelectRelative(1));
-        AddExpanded(_card);
-
-        // The source Tray slot is 275 x 250, with a 225px content region.
-        _listContainer = new UIObject(island, new Vec2(0, -22.5f), new Vec2(225, 165), UIAlignment.BottomCenter)
+        for (int slot = 0; slot < 3; slot++)
         {
-            Anchor = new Vec2(0.5f, 1), Color = Col.Transparent
-        };
-        for (int index = 0; index < 5; index++)
-        {
-            int slot = index;
-            var row = new ConferenceListRow(_listContainer, new Vec2(0, 16 + index * 29), () =>
-            {
-                int selected = _listOffset + slot;
-                if (selected >= _model.Rows.Count) return;
-                _model.SelectedIndex = selected;
-                ShowPage("details");
-            });
-            _listRows.Add(row);
-            _listObjects.Add(row);
-            AddExpanded(row);
+            var row = new ConferenceRow(island, 16, 50 + slot * 52, id => OpenDetails(id, "widgets"));
+            Register($"upcoming.row.{slot}", row); _upcomingRows[slot] = row;
         }
-        _listEmpty = Text(_listContainer, "No matching conferences", new Vec2(0, 70), 12, Theme.TextSecond);
-        _listPage = Text(island, "", new Vec2(0, -17), 10, Theme.TextThird, UIAlignment.BottomCenter);
-        _listObjects.Add(_listEmpty); _listObjects.Add(_listPage);
-        AddExpanded(_listEmpty); AddExpanded(_listPage);
-        _detailPage = Text(island, "", new Vec2(0, -17), 10, Theme.TextThird, UIAlignment.BottomCenter);
-        AddExpanded(_detailPage);
+        for (int slot = 0; slot < 5; slot++)
+        {
+            var row = new ConferenceRow(island, 16, 50 + slot * 52, id => OpenDetails(id, "list"));
+            Register($"list.row.{slot}", row); _listRows[slot] = row;
+        }
+        _empty = new Label(island, 16, 65, 288, 24, 13, Theme.TextSecond) { Text = "No matching conferences", Center = true };
+        UiObjects.Add(_empty);
+        _emptyAction = Button("empty.action", "Reset filters", 99, 102, 122, 28, () =>
+        {
+            if (HasFilters()) ResetFilters(); else _model.Refresh?.Invoke();
+        });
+        _status = new Label(island, 16, 220, 176, 17, 10, Theme.TextThird);
+        _pageNumber = new Label(island, 190, 334, 54, 17, 10, Theme.TextThird) { Center = true };
+        UiObjects.Add(_status); UiObjects.Add(_pageNumber);
+        _refresh = Button("list.refresh", "Refresh", 250, 214, 54, 24, () => _model.Refresh?.Invoke());
 
-        var title = Text(island, "CCF filters", new Vec2(25, 67), 24, Theme.TextMain, UIAlignment.TopLeft, true);
-        title.Anchor.X = 0;
-        AddSetting(title);
-        AddSetting(LeftLabel("CCF rank", 107));
-        _rankButtons = Preferences.CcfValues.Select((rank, index) =>
+        AddLabel("filters", "CCF rank", 16, 50, 288, 18, 11, Theme.TextSecond);
+        for (int index = 0; index < Preferences.CcfValues.Length; index++)
         {
-            var button = new DWTextButton(island, rank == "N" ? "Unranked" : rank,
-                new Vec2(25 + index * 90, 137), new Vec2(75, 25), () =>
-                {
-                    var selected = _model.Preferences.Ccf;
-                    if (selected.Contains(rank)) selected.Remove(rank); else selected.Add(rank);
-                    _model.SavePreferences?.Invoke();
-                }, UIAlignment.TopLeft) { Anchor = new Vec2(0, 0.5f), normalTextSize = 14 };
-            button.Text.Color = Theme.TextSecond;
-            AddSetting(button);
-            return button;
-        }).ToArray();
+            string rank = Preferences.CcfValues[index];
+            var chip = new ToggleButton(island, rank == "N" ? "Unranked" : rank, 16 + index * 74, 73, 66, 30, () =>
+            {
+                if (_model.Preferences.Ccf.Contains(rank)) _model.Preferences.Ccf.Remove(rank);
+                else _model.Preferences.Ccf.Add(rank);
+                SaveAndRefresh();
+            });
+            chip.FontSize = rank == "N" ? 9.5f : 11; Register("filters.rank." + rank, chip, "filters"); _ranks[rank] = chip;
+        }
+        AddLabel("filters", "Deadline range", 16, 114, 288, 18, 11, Theme.TextSecond);
+        int[] days = { 30, 90, 180, 365 };
+        for (int index = 0; index < days.Length; index++)
+        {
+            int range = days[index];
+            var chip = new ToggleButton(island, range + " days", 16 + index * 74, 137, 66, 30, () =>
+            { _model.Preferences.WithinDays = range; SaveAndRefresh(); });
+            chip.FontSize = 10; Register("filters.range." + range, chip, "filters"); _ranges[range] = chip;
+        }
+        _submission = new ToggleButton(island, "Submission deadlines only", 16, 188, 288, 36, () =>
+        { _model.Preferences.SubmissionOnly = !_model.Preferences.SubmissionOnly; SaveAndRefresh(); }) { FullRow = true, FontSize = 12 };
+        Register("filters.submission", _submission, "filters");
+        AddPageButton("filters", "filters.reset", "Reset filters", 16, 244, 114, 28, ResetFilters);
+        AddPageButton("filters", "filters.done", "Done", 236, 244, 68, 28, () => ShowPage(_returnPage));
 
-        AddSetting(LeftLabel("Deadline range", 177));
-        int[] ranges = { 30, 90, 180, 365 };
-        var range = new MultiSelectionButton(island, ranges.Select(days => days + " days").ToArray(),
-            new Vec2(25, 207), new Vec2(475, 25), UIAlignment.TopLeft) { Anchor = new Vec2(0, 0.5f) };
-        range.SelectedIndex = Math.Max(0, Array.IndexOf(ranges, model.Preferences.WithinDays));
-        range.onClick += index => { _model.Preferences.WithinDays = ranges[index]; _model.SavePreferences?.Invoke(); };
-        AddSetting(range);
+        AddLabel("display", "Display", 16, 51, 288, 23, 15, Theme.TextMain, bold: true);
+        _animations = new ToggleButton(island, "Animations", 16, 83, 288, 36, () =>
+        { _model.Preferences.ReducedMotion = !_model.Preferences.ReducedMotion; SaveAndRefresh(); }) { FullRow = true, FontSize = 12 };
+        Register("display.animations", _animations, "display");
+        AddPageButton("display", "display.done", "Done", 236, 136, 68, 28, () => ShowPage(_returnPage));
 
-        _submissionOnly = new Checkbox(island, "Submission deadlines only", new Vec2(25, 252), new Vec2(25, 25), () =>
+        AddPageButton("details", "details.back", "Back", 16, 50, 50, 25, () => ShowPage(_detailsReturnPage));
+        _detailTitle = AddLabel("details", "", 76, 50, 228, 25, 14, Theme.TextMain, bold: true);
+        for (int i = 0; i < 2; i++)
         {
-            _model.Preferences.SubmissionOnly = _submissionOnly!.IsChecked;
-            _model.SavePreferences?.Invoke();
-        }, UIAlignment.TopLeft) { Anchor = new Vec2(0, 0.5f), IsChecked = model.Preferences.SubmissionOnly };
-        AddSetting(_submissionOnly);
-        _animations = new Checkbox(island, "Toggle animations", new Vec2(25, 290), new Vec2(25, 25), () =>
-        {
-            _model.Preferences.ReducedMotion = !_animations!.IsChecked;
-            _model.SavePreferences?.Invoke();
-        }, UIAlignment.TopLeft) { Anchor = new Vec2(0, 0.5f), IsChecked = !model.Preferences.ReducedMotion };
-        AddSetting(_animations);
-        var refresh = new DWTextButton(island, "Refresh conference data", new Vec2(25, 336), new Vec2(225, 25), () => _model.Refresh?.Invoke(), UIAlignment.TopLeft)
-        {
-            Anchor = new Vec2(0, 0.5f), normalTextSize = 14
-        };
-        AddSetting(refresh);
-        _settingsStatus = Text(island, "", new Vec2(25, 356), 11, Theme.TextThird, UIAlignment.TopLeft);
-        _settingsStatus.Anchor.X = 0;
-        AddSetting(_settingsStatus);
-        var back = new DWTextButton(island, "Save changes", new Vec2(0, -45), new Vec2(250, 40), () =>
-        {
-            _model.SavePreferences?.Invoke(); ShowPage("widgets");
-        }, UIAlignment.BottomCenter) { roundRadius = 25 };
-        back.Text.Font = Res.InterBold;
-        AddSetting(back);
+            _detailPanels[i] = new DeadlinePanel(island, 16, 87 + i * 83, 288, 75);
+            UiObjects.Add(_detailPanels[i]);
+        }
+        AddPageButton("details", "details.website", "Website", 16, 267, 100, 28, () => InvokeSelected(_model.OpenWebsite));
+        AddPageButton("details", "details.copy", "Copy times", 124, 267, 78, 28, () => InvokeSelected(_model.CopyTime));
+        AddPageButton("details", "details.calendar", "Calendar", 210, 267, 94, 28, () => InvokeSelected(_model.ExportCalendar));
+        _previousDeadlines = Button("details.previous", "<", 16, 313, 30, 24, () => Scroll(120));
+        _previousDeadlines.ActionName = "Previous deadline dates";
+        _nextDeadlines = Button("details.next", ">", 274, 313, 30, 24, () => Scroll(-120));
+        _nextDeadlines.ActionName = "Next deadline dates";
+        _detailPage = AddLabel("details", "", 53, 313, 214, 24, 10, Theme.TextThird, center: true);
 
-        foreach (var item in _expanded) item.SilentSetActive(false);
+        foreach (var item in UiObjects) item.SilentSetActive(false);
     }
 
     public Vec2 IslandSize()
     {
-        // HomeMenu grows compact width from its two small-widget widths and 57.5px spacing.
-        var selected = Selected;
-        string title = selected is null ? "CCF" : DWText.Truncate(selected.Conference.Title, 12);
-        string countdown = selected is null ? (_model.Loading ? "Loading" : "--") : Remaining(selected.Deadline.Utc - DateTimeOffset.UtcNow);
+        var row = _model.Rows.FirstOrDefault();
+        string title = row?.Conference.Title ?? "CCF";
+        string remaining = row is null ? (_model.Loading ? "Loading" : "--") : Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow);
         using var paint = new SKPaint { Typeface = Res.InterRegular, TextSize = 14 };
-        return new Vec2(Math.Max(200, paint.MeasureText(title) + paint.MeasureText(countdown) + 57.5f), 35);
+        return new Vec2(Math.Max(200, paint.MeasureText(DWText.Truncate(title, 12)) + paint.MeasureText(remaining) + 57.5f), 35);
     }
-    public Vec2 IslandSizeBig()
+    public Vec2 IslandSizeBig() => new(320, Page switch
     {
-        if (Page == "settings") return new Vec2(530, 430);
-        if (Page == "list") return new Vec2(275, 250);
-        if (Page == "details" && _detailCards.Count > 1)
-            return new Vec2(460, _detailCards.Count > 2 ? 310 : 195);
-        return new Vec2(275, 180);
-    }
+        "filters" => 288, "display" => 180, "list" => 360, "details" => 352,
+        _ => _model.Rows.Count == 0 ? 160 : 92 + 52 * Math.Min(3, _model.Rows.Count)
+    });
     public Col IslandBorderColor() => Col.Transparent;
 
     public void ShowPage(string page)
     {
-        if (page is not ("widgets" or "list" or "details" or "settings")) page = "widgets";
+        page = page switch { "upcoming" => "widgets", "settings" => "filters", _ => page };
+        if (!_pages.ContainsKey(page)) page = "widgets";
         if (page == "details" && Selected is null) page = "widgets";
+        if (Page == page) { Update(); return; }
+        if (page is "filters" or "display") _returnPage = Page is "widgets" or "list" or "details" ? Page : _returnPage;
+        string selectedId = Selected?.Id ?? "";
         Page = page;
-        if (page == "details") BuildDetails();
+        if (page == "details") { _selectedId = selectedId; _detailOffset = 0; }
         PageChanged?.Invoke(page);
+        Update();
     }
-
     public void Scroll(int delta)
     {
         if (delta == 0) return;
         if (Page == "list") _listOffset = Math.Clamp(_listOffset + (delta > 0 ? -1 : 1), 0, Math.Max(0, _model.Rows.Count - 5));
-        else if (Page == "details")
-        {
-            BuildDetails();
-            _detailOffset = Math.Clamp(_detailOffset + (delta > 0 ? -2 : 2), 0, Math.Max(0, _detailTotal - 4));
-            BuildDetails();
-        }
-        else if (Page == "widgets") SelectRelative(delta > 0 ? -1 : 1);
+        if (Page == "details") _detailOffset = Math.Clamp(_detailOffset + (delta > 0 ? -2 : 2), 0, Math.Max(0, _detailTotal - 2));
+        Update();
     }
-
     public void SelectRelative(int delta)
     {
         if (_model.Rows.Count == 0) return;
         _model.SelectedIndex = ((_model.SelectedIndex + delta) % _model.Rows.Count + _model.Rows.Count) % _model.Rows.Count;
-        if (Page == "details") BuildDetails();
+        if (Page == "details") { _selectedId = _model.Rows[_model.SelectedIndex].Id; _detailOffset = 0; }
+        Update();
     }
 
     public void Update()
     {
         bool expanded = _island.IsHovering;
-        _model.SelectedIndex = Math.Clamp(_model.SelectedIndex, 0, Math.Max(0, _model.Rows.Count - 1));
-        var selected = Selected;
+        if (_model.Rows.Count > 0) _model.SelectedIndex = Math.Clamp(_model.SelectedIndex, 0, _model.Rows.Count - 1);
+        if (Page == "details" && _selectedId.Length > 0 && !_model.Rows.Any(row => row.Id == _selectedId))
+        { Page = "widgets"; _selectedId = ""; PageChanged?.Invoke(Page); }
+        var next = _model.Rows.FirstOrDefault();
         _compactContainer.Size = IslandSize() - 35;
-        _compactTitle.SilentSetText(selected is null ? "CCF" : DWText.Truncate(selected.Conference.Title, 12));
-        _compactCountdown.SilentSetText(selected is null ? (_model.Loading ? "Loading" : "--") : Remaining(selected.Deadline.Utc - DateTimeOffset.UtcNow));
-        _compactTitle.SetActive(!expanded);
-        _compactCountdown.SetActive(!expanded);
-
-        _topContainer.Size = new Vec2(_island.currSize.X - 30, 30);
-        _widgetButton.SetActive(expanded);
-        _listButton.SetActive(expanded);
-        _expanded[2].SetActive(expanded); // Original gear button.
-        _card.SetActive(expanded && Page == "widgets");
-        _card.Refresh(selected, _model.Loading);
-        Col tabActive = Col.White.Override(a: 0.075f);
-        float smoothing = Math.Clamp(15 * RendererMain.Instance.DeltaTime, 0, 1);
-        _widgetButton.normalColor = Col.Lerp(_widgetButton.normalColor, Page == "widgets" ? tabActive : Col.Transparent, smoothing);
-        _widgetButton.hoverColor = _widgetButton.normalColor;
-        _listButton.normalColor = Col.Lerp(_listButton.normalColor, Page == "list" ? tabActive : Col.Transparent, smoothing);
-        _listButton.hoverColor = _listButton.normalColor;
-
-        _listOffset = Math.Clamp(_listOffset, 0, Math.Max(0, _model.Rows.Count - 5));
-        for (int index = 0; index < _listRows.Count; index++)
+        _compactTitle.SilentSetText(next is null ? "CCF" : DWText.Truncate(next.Conference.Title, 12));
+        _compactCountdown.SilentSetText(next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow));
+        _compactTitle.SetActive(!expanded); _compactCountdown.SetActive(!expanded);
+        foreach (var group in _pages)
+            foreach (var item in group.Value) item.SetActive(expanded && group.Key == Page);
+        foreach (var item in _navigation) item.SetActive(expanded);
+        _buttons["nav.upcoming"].IsSelected = Page == "widgets";
+        _buttons["nav.all"].IsSelected = Page == "list";
+        _buttons["nav.filters"].IsSelected = Page == "filters";
+        _buttons["nav.display"].IsSelected = Page == "display";
+        for (int i = 0; i < 3; i++)
         {
-            var row = _model.Rows.ElementAtOrDefault(_listOffset + index);
-            _listRows[index].Refresh(row);
-            _listRows[index].SetActive(expanded && Page == "list" && row is not null);
+            _upcomingRows[i].Bind(_model.Rows.ElementAtOrDefault(i));
+            _upcomingRows[i].SetActive(expanded && Page == "widgets" && _upcomingRows[i].Row is not null);
         }
-        _listEmpty.SetActive(expanded && Page == "list" && _model.Rows.Count == 0);
-        _listPage.SetActive(expanded && Page == "list" && _model.Rows.Count > 0);
-        _listPage.SilentSetText($"{_listOffset + 1}-{Math.Min(_model.Rows.Count, _listOffset + 5)} / {_model.Rows.Count}");
-
-        if (Page == "details") BuildDetails();
-        foreach (var card in _detailCards) card.SetActive(expanded && Page == "details");
-        _detailPage.SetActive(expanded && Page == "details" && _detailTotal > 4);
-        foreach (var item in _settingsObjects) item.SetActive(expanded && Page == "settings");
-        for (int index = 0; index < _rankButtons.Length; index++)
-            _rankButtons[index].normalColor = _model.Preferences.Ccf.Contains(Preferences.CcfValues[index])
-                ? (Theme.Primary * 0.65f).Override(a: 0.75f) : Theme.Secondary.Override(a: 0.9f);
-        _settingsStatus.SilentSetText(DWText.Truncate(_model.Status, 68));
+        _listOffset = Math.Clamp(_listOffset, 0, Math.Max(0, _model.Rows.Count - 5));
+        for (int i = 0; i < 5; i++)
+        {
+            _listRows[i].Bind(_model.Rows.ElementAtOrDefault(_listOffset + i));
+            _listRows[i].SetActive(expanded && Page == "list" && _listRows[i].Row is not null);
+        }
+        foreach (var pair in _ranks) pair.Value.IsSelected = _model.Preferences.Ccf.Contains(pair.Key);
+        foreach (var pair in _ranges) pair.Value.IsSelected = _model.Preferences.WithinDays == pair.Key;
+        _submission.IsSelected = _model.Preferences.SubmissionOnly;
+        _animations.IsSelected = !_model.Preferences.ReducedMotion;
+        bool listPage = Page is "widgets" or "list";
+        bool empty = _model.Rows.Count == 0;
+        _empty.SetActive(expanded && listPage && empty);
+        _empty.Text = _model.Loading ? "Loading conferences..." : HasFilters() ? "No matching conferences" : "No upcoming conferences";
+        _emptyAction.SetActive(expanded && listPage && empty && !_model.Loading);
+        _emptyAction.Text = HasFilters() ? "Reset filters" : "Retry";
+        float height = IslandSizeBig().Y;
+        _status.Position = new Vec2(16, height - 27);
+        _status.Text = _model.Status; _status.SetActive(expanded && listPage);
+        _refresh.Position = new Vec2(250, height - 34); _refresh.Text = _model.Loading ? "..." : _model.Status.StartsWith("Offline", StringComparison.Ordinal) ? "Retry" : "Refresh";
+        _refresh.AcceptsInput = !_model.Loading;
+        _refresh.SetActive(expanded && listPage);
+        _pageNumber.Text = _model.Rows.Count == 0 ? "" : $"{_listOffset + 1}-{Math.Min(_model.Rows.Count, _listOffset + 5)}/{_model.Rows.Count}";
+        _pageNumber.SetActive(expanded && Page == "list");
+        UpdateDetails(expanded);
     }
 
+    private void UpdateDetails(bool expanded)
+    {
+        var selected = Page == "details" ? Selected : null;
+        var points = selected?.Conference.Deadlines.Where(point => point.Utc > DateTimeOffset.UtcNow).OrderBy(point => point.Utc).ToList() ?? new();
+        _detailTotal = points.Count;
+        _detailOffset = Math.Clamp(_detailOffset, 0, Math.Max(0, points.Count - 2));
+        _detailTitle.Text = selected?.Heading ?? "";
+        for (int i = 0; i < 2; i++)
+        {
+            var point = points.ElementAtOrDefault(_detailOffset + i);
+            _detailPanels[i].Point = point;
+            _detailPanels[i].SetActive(expanded && Page == "details" && point is not null);
+        }
+        foreach (string id in new[] { "details.website", "details.copy", "details.calendar" })
+        {
+            _buttons[id].InputIdentity = id + ":" + (selected?.Id ?? "");
+            _buttons[id].AcceptsInput = selected is not null;
+        }
+        _buttons["details.website"].AcceptsInput = selected is not null && Uri.TryCreate(selected.Conference.Website, UriKind.Absolute, out var website) && website.Scheme is "http" or "https";
+        _previousDeadlines.AcceptsInput = _detailOffset > 0;
+        _nextDeadlines.AcceptsInput = _detailOffset + 2 < points.Count;
+        _previousDeadlines.SetActive(expanded && Page == "details" && points.Count > 2);
+        _nextDeadlines.SetActive(expanded && Page == "details" && points.Count > 2);
+        _detailPage.Text = points.Count == 0 ? "No future deadlines" : $"{_detailOffset + 1}-{Math.Min(points.Count, _detailOffset + 2)} / {points.Count} deadline dates";
+    }
+    private void OpenDetails(string id, string fromPage)
+    {
+        int index = _model.Rows.ToList().FindIndex(row => row.Id == id && row.Deadline.Utc > DateTimeOffset.UtcNow);
+        if (index < 0) return;
+        _model.SelectedIndex = index; _selectedId = id; _detailOffset = 0; _detailsReturnPage = fromPage;
+        Page = "details"; PageChanged?.Invoke(Page); Update();
+    }
+    private void InvokeSelected(Action? action)
+    {
+        int index = _model.Rows.ToList().FindIndex(row => row.Id == _selectedId && row.Deadline.Utc > DateTimeOffset.UtcNow);
+        if (index < 0) { ShowPage("widgets"); return; }
+        _model.SelectedIndex = index; action?.Invoke();
+    }
+    private bool HasFilters() => _model.Preferences.Ccf.Count != Preferences.CcfValues.Length || _model.Preferences.WithinDays != 365
+        || _model.Preferences.SubmissionOnly || _model.Preferences.Core.Count != Preferences.CoreValues.Length
+        || _model.Preferences.Thcpl.Count != Preferences.ThcplValues.Length || _model.Preferences.Categories.Count != Preferences.Areas.Count;
+    private void ResetFilters()
+    {
+        var preferences = _model.Preferences;
+        preferences.Ccf = new(Preferences.CcfValues); preferences.Core = new(Preferences.CoreValues); preferences.Thcpl = new(Preferences.ThcplValues);
+        preferences.Categories = new(Preferences.Areas.Keys); preferences.WithinDays = 365; preferences.SubmissionOnly = false; preferences.Search = "";
+        SaveAndRefresh();
+    }
+    private void SaveAndRefresh() { _model.SavePreferences?.Invoke(); Update(); }
     public static string Remaining(TimeSpan remaining)
     {
         if (remaining <= TimeSpan.Zero) return "Expired";
@@ -290,185 +318,161 @@ public sealed class ConferenceMenu : IIslandMenu
         return $"{seconds / 60}m {seconds % 60}s";
     }
 
-    private DWTextImageButton MakeTab(SKBitmap icon, string label, float x, float width, float textX, Action click)
+    private void Nav(string id, string text, float x, float width, Action action)
+    { var button = Button(id, text, x, 14, width, 26, action); button.FontSize = 11; _navigation.Add(button); }
+    private MenuButton Button(string id, string text, float x, float y, float width, float height, Action action)
+    { var button = new MenuButton(_island, text, x, y, width, height, action); Register(id, button); return button; }
+    private MenuButton AddPageButton(string page, string id, string text, float x, float y, float width, float height, Action action)
+    { var button = Button(id, text, x, y, width, height, action); _pages[page].Add(button); return button; }
+    private void Register(string id, MenuButton button, string? page = null)
     {
-        var button = new DWTextImageButton(_topContainer, icon, label, new Vec2(x, 0), new Vec2(width, 20), click, UIAlignment.MiddleLeft)
-        {
-            normalColor = Col.Transparent, hoverColor = Col.Transparent,
-            clickColor = Theme.Primary.Override(a: 0.35f), roundRadius = 25
-        };
-        button.Text.alignment = UIAlignment.MiddleLeft;
-        button.Text.Anchor.X = 0;
-        button.Text.Position = new Vec2(textX, 0);
-        return button;
+        button.InputIdentity = id; button.StableId = id; Controls[id] = button; _buttons[id] = button; UiObjects.Add(button);
+        if (page is not null) _pages[page].Add(button);
     }
+    private void AddPageObject(string page, UIObject item) { UiObjects.Add(item); _pages[page].Add(item); }
+    private Label AddLabel(string page, string text, float x, float y, float width, float height, float size, Col color, bool bold = false, bool center = false)
+    { var label = new Label(_island, x, y, width, height, size, color) { Text = text, Bold = bold, Center = center }; AddPageObject(page, label); return label; }
 
-    private void AddExpanded(UIObject item) { _expanded.Add(item); UiObjects.Add(item); }
-    private void AddSetting(UIObject item) { _settingsObjects.Add(item); AddExpanded(item); }
-    private DWText LeftLabel(string text, float y)
+    public class MenuButton : DWButton
     {
-        var label = Text(_island, text, new Vec2(25, y), 15, Theme.TextSecond, UIAlignment.TopLeft);
-        label.Anchor.X = 0;
-        return label;
-    }
-    private static DWText Text(UIObject parent, string value, Vec2 position, float size, Col color,
-        UIAlignment alignment = UIAlignment.TopCenter, bool bold = false) => new(parent, value, position, alignment)
-        { TextSize = size, Font = bold ? Res.InterBold : Res.InterRegular, Color = color };
-
-    private void BuildDetails()
-    {
-        var selected = Selected;
-        if (selected is null)
+        public string StableId { get; set; } = "";
+        public string ActionName { get; set; }
+        public string Text { get; set; }
+        public float FontSize { get; set; } = 11.5f;
+        public bool IsSelected { get; set; }
+        public SKBitmap? Icon { get; set; }
+        public MenuButton(IslandObject island, string text, float x, float y, float width, float height, Action action)
+            : base(island, new Vec2(x, y), new Vec2(width, height), action, UIAlignment.TopLeft)
         {
-            _detailTotal = 0;
-            _detailOffset = 0;
-            _detailConferenceId = "";
-            _detailKey = "";
-            foreach (var card in _detailCards) { card.DestroyCall(); UiObjects.Remove(card); _expanded.Remove(card); }
-            _detailCards.Clear();
-            _detailPage.SilentSetText("");
-            return;
-        }
-        if (_detailConferenceId != selected.Id)
-        {
-            _detailConferenceId = selected.Id;
-            _detailOffset = 0;
-        }
-        var allPoints = selected.Conference.Deadlines.Where(point => point.Utc > DateTimeOffset.UtcNow).OrderBy(point => point.Utc).ToList();
-        _detailTotal = allPoints.Count;
-        _detailOffset = Math.Clamp(_detailOffset, 0, Math.Max(0, _detailTotal - 4));
-        var points = allPoints.Skip(_detailOffset).Take(4).ToList();
-        _detailPage.SilentSetText(_detailTotal > 4 ? $"{_detailOffset + 1}-{Math.Min(_detailTotal, _detailOffset + 4)} / {_detailTotal}" : "");
-        string key = $"{selected.Id}:{_detailOffset}:{_detailTotal}:" + string.Join("|", points.Select(point => $"{point.Kind}:{point.Utc.Ticks}:{point.SourceTime}:{point.Timezone}"));
-        if (key == _detailKey) return;
-        _detailKey = key;
-        foreach (var card in _detailCards) { card.DestroyCall(); UiObjects.Remove(card); _expanded.Remove(card); }
-        _detailCards.Clear();
-        for (int index = 0; index < points.Count; index++)
-        {
-            int column = points.Count == 1 ? 0 : index % 2;
-            int line = points.Count <= 2 ? 0 : index / 2;
-            float x = points.Count == 1 ? 0 : column == 0 ? -107.5f : 107.5f;
-            float y = points.Count <= 2 ? -25 : -25 - (1 - line) * 115;
-            var card = new DeadlineCard(_island, points[index], new Vec2(x, y), _model);
-            card.SilentSetActive(false);
-            _detailCards.Add(card);
-            AddExpanded(card);
-        }
-    }
-
-    private sealed class ConferenceCard : WidgetBase
-    {
-        private readonly ConferenceModel _model;
-        private readonly DWText _title;
-        private readonly DWText _subtitle;
-        private System.Windows.Controls.ContextMenu? _contextMenu;
-        public ConferenceCard(IslandObject island, ConferenceModel model, Action previous, Action details, Action next)
-            : base(island, new Vec2(0, -25), UIAlignment.BottomCenter)
-        {
-            _model = model;
-            Anchor = new Vec2(0.5f, 1);
-            // MediaWidget's exact title, subtitle and control slots.
-            _title = new DWText(this, "CCF Deadlines", new Vec2(0, 22.5f)) { Color = Theme.TextSecond, Font = Res.InterBold, TextSize = 15 };
-            _subtitle = new DWText(this, "Loading...", new Vec2(0, 42.5f)) { Color = Theme.TextThird, Font = Res.InterRegular, TextSize = 13 };
-            AddLocalObject(_title); AddLocalObject(_subtitle);
-            AddLocalObject(Control(Res.Previous, -50, previous, 0.65f));
-            AddLocalObject(Control(Res.FileIcon, 0, details, 0.8f));
-            AddLocalObject(Control(Res.Next, 50, next, 0.65f));
-        }
-        private DWImageButton Control(SKBitmap icon, float x, Action action, float imageScale) =>
-            new(this, icon, new Vec2(x, 25), new Vec2(30, 30), action, UIAlignment.Center)
-            {
-                roundRadius = 25, normalColor = Col.Transparent,
-                hoverColor = Col.White.Override(a: 0.1f), clickColor = Col.White.Override(a: 0.25f),
-                hoverScaleMulti = Vec2.one * 1.25f, imageScale = imageScale
-            };
-        public void Refresh(DeadlineRow? row, bool loading)
-        {
-            _title.Text = row is null ? (loading ? "Loading..." : "No conferences") : DWText.Truncate(row.Heading, 20);
-            _subtitle.SilentSetText(row is null ? "CCF Deadlines" : $"{(row.Deadline.Kind == "abstract" ? "Abstract" : "Submission")} · {Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow)}");
-        }
-        public override void DrawWidget(SKCanvas canvas)
-        {
-            using var paint = GetPaint();
-            paint.Color = GetColor(Theme.WidgetBackground).Value();
-            canvas.DrawRoundRect(GetRect(), paint);
-        }
-        public override System.Windows.Controls.ContextMenu? GetContextMenu() => _contextMenu ??= MakeContext(_model);
-    }
-
-    private sealed class ConferenceListRow : DWButton
-    {
-        private readonly DWText _title;
-        private readonly DWText _countdown;
-        public ConferenceListRow(UIObject parent, Vec2 position, Action click)
-            : base(parent, position, new Vec2(225, 28), click)
-        {
-            normalColor = Col.Transparent; hoverColor = Theme.WidgetBackground; clickColor = Theme.Primary.Override(a: 0.35f); roundRadius = 15;
-            _title = new DWText(this, "", new Vec2(9, 0), UIAlignment.MiddleLeft) { Anchor = new Vec2(0, 0.5f), Font = Res.InterBold, TextSize = 11, Color = Theme.TextSecond };
-            _countdown = new DWText(this, "", new Vec2(-9, 0), UIAlignment.MiddleRight) { Anchor = new Vec2(1, 0.5f), Font = Res.InterRegular, TextSize = 10, Color = Theme.TextThird };
-            AddLocalObject(_title); AddLocalObject(_countdown);
-        }
-        public void Refresh(DeadlineRow? row)
-        {
-            _title.SilentSetText(row is null ? "" : DWText.Truncate(row.Heading, 17));
-            _countdown.SilentSetText(row is null ? "" : Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow));
-        }
-    }
-
-    private sealed class DeadlineCard : WidgetBase
-    {
-        private readonly ConferenceModel _model;
-        private readonly DeadlinePoint _point;
-        private readonly DWText _remaining;
-        private System.Windows.Controls.ContextMenu? _contextMenu;
-        public DeadlineCard(IslandObject island, DeadlinePoint point, Vec2 position, ConferenceModel model)
-            : base(island, position, UIAlignment.BottomCenter)
-        {
-            _model = model;
-            _point = point;
-            Anchor = new Vec2(0.5f, 1);
-            var heading = Text(this, point.Kind == "abstract" ? "Abstract deadline" : "Submission deadline", new Vec2(15, 20), 13, Theme.TextSecond, UIAlignment.TopLeft, true);
-            heading.Anchor.X = 0;
-            AddLocalObject(heading);
-            AddLocalObject(LeftTime(point.Utc.ToLocalTime().ToString("MM/dd  HH:mm  zzz", CultureInfo.InvariantCulture), 43));
-            AddLocalObject(LeftTime(DWText.Truncate(point.SourceTime + " " + point.Timezone, 27), 63));
-            _remaining = Text(this, Remaining(point.Utc - DateTimeOffset.UtcNow), new Vec2(15, -16), 12, Theme.TextMain, UIAlignment.BottomLeft);
-            _remaining.Anchor.X = 0;
-            AddLocalObject(_remaining);
-        }
-        private DWText LeftTime(string value, float y)
-        {
-            var text = Text(this, value, new Vec2(15, y), 11, Theme.TextThird, UIAlignment.TopLeft);
-            text.Anchor.X = 0;
-            return text;
-        }
-        public override void DrawWidget(SKCanvas canvas)
-        {
-            using var paint = GetPaint(); paint.Color = GetColor(Theme.WidgetBackground).Value();
-            canvas.DrawRoundRect(GetRect(), paint);
+            Anchor = Vec2.zero; Text = text; ActionName = text;
+            roundRadius = 8; normalScaleMulti = hoverScaleMulti = clickScaleMulti = Vec2.one;
+            normalColor = Col.Transparent; hoverColor = Col.White.Override(a: 0.08f); clickColor = Col.White.Override(a: 0.14f);
         }
         public override void Update(float deltaTime)
         {
+            normalColor = IsSelected ? Col.White.Override(a: 0.075f) : Col.Transparent;
+            hoverColor = IsSelected ? Col.White.Override(a: 0.12f) : Col.White.Override(a: 0.08f);
             base.Update(deltaTime);
-            _remaining.SilentSetText(Remaining(_point.Utc - DateTimeOffset.UtcNow));
         }
-        public override System.Windows.Controls.ContextMenu? GetContextMenu() => _contextMenu ??= MakeContext(_model);
+        public override void Draw(SKCanvas canvas)
+        {
+            using var background = GetPaint(); background.Color = Color.Value(); canvas.DrawRoundRect(GetRect(), background);
+            var foreground = GetColor(AcceptsInput ? Theme.TextSecond : Theme.TextThird);
+            if (Icon is not null)
+            {
+                using var paint = GetPaint(); paint.Color = foreground.Value();
+                canvas.DrawBitmap(Icon, SKRect.Create(Position.X + (Size.X - 15) / 2, Position.Y + (Size.Y - 15) / 2, 15, 15), paint);
+            }
+            else DrawText(canvas, Text, Position.X + Size.X / 2, Position.Y + Size.Y / 2, FontSize, foreground, centered: true, middle: true, maxWidth: Size.X - 12);
+        }
     }
-
-    private static System.Windows.Controls.ContextMenu MakeContext(ConferenceModel model)
+    public sealed class ToggleButton : MenuButton
     {
-        var context = new System.Windows.Controls.ContextMenu();
-        foreach (var (label, action) in new (string, Action?)[]
+        public bool FullRow { get; set; }
+        public ToggleButton(IslandObject island, string text, float x, float y, float width, float height, Action action) : base(island, text, x, y, width, height, action) { }
+        public override void Update(float deltaTime)
         {
-            ("Open conference website", model.OpenWebsite), ("Copy deadline times", model.CopyTime),
-            ("Export calendar (.ics)", model.ExportCalendar), ("Refresh", model.Refresh)
-        })
-        {
-            var item = new System.Windows.Controls.MenuItem { Header = label, IsEnabled = action is not null };
-            item.Click += (_, _) => action?.Invoke();
-            context.Items.Add(item);
+            base.Update(deltaTime);
+            normalColor = IsSelected ? Theme.Primary.Override(a: 0.34f) : Theme.WidgetBackground;
+            hoverColor = IsSelected ? Theme.Primary.Override(a: 0.48f) : Col.White.Override(a: 0.12f);
+            clickColor = IsSelected ? Theme.Primary.Override(a: 0.58f) : Col.White.Override(a: 0.18f);
         }
-        return context;
+        public override void Draw(SKCanvas canvas)
+        {
+            using var background = GetPaint(); background.Color = GetColor(IsHovering ? hoverColor : normalColor).Value(); canvas.DrawRoundRect(GetRect(), background);
+            float checkX = Position.X + (FullRow ? 14 : 9);
+            if (FullRow || IsSelected)
+            {
+                if (FullRow)
+                {
+                    using var box = GetPaint(); box.Color = GetColor(IsSelected ? Theme.Primary : Theme.TextThird).Value(); box.IsStroke = !IsSelected; box.StrokeWidth = 1;
+                    canvas.DrawRoundRect(SKRect.Create(checkX - 2, Position.Y + (Size.Y - 16) / 2, 16, 16), 4, 4, box);
+                }
+                if (IsSelected)
+                {
+                    using var tick = GetPaint(); tick.Color = GetColor(Theme.TextMain).Value(); tick.IsStroke = true; tick.StrokeWidth = 1.5f; tick.StrokeCap = SKStrokeCap.Round;
+                    float cy = Position.Y + Size.Y / 2; using var path = new SKPath();
+                    path.MoveTo(checkX + (FullRow ? 2 : -1), cy); path.LineTo(checkX + (FullRow ? 5 : 2), cy + 3); path.LineTo(checkX + (FullRow ? 10 : 7), cy - 3); canvas.DrawPath(path, tick);
+                }
+            }
+            if (FullRow) DrawText(canvas, Text, Position.X + 40, Position.Y + Size.Y / 2, FontSize, GetColor(IsSelected ? Theme.TextMain : Theme.TextSecond), middle: true, maxWidth: Size.X - 52);
+            else DrawText(canvas, Text, Position.X + Size.X / 2 + (IsSelected ? 5 : 0), Position.Y + Size.Y / 2, FontSize, GetColor(IsSelected ? Theme.TextMain : Theme.TextSecond), centered: true, middle: true, maxWidth: Size.X - (IsSelected ? 18 : 12));
+        }
+    }
+    public sealed class ConferenceRow : MenuButton
+    {
+        private readonly Action<string> _select;
+        public DeadlineRow? Row { get; private set; }
+        public string BoundId => Row?.Id ?? "";
+        public ConferenceRow(IslandObject island, float x, float y, Action<string> select) : base(island, "", x, y, 288, 48, () => { })
+        {
+            _select = select; roundRadius = 11;
+            clickCallback = () => { if (Row is not null) _select(Row.Id); };
+        }
+        public void Bind(DeadlineRow? row)
+        {
+            Row = row; AcceptsInput = row is not null; InputIdentity = StableId + ":" + (row?.Id ?? "");
+            ActionName = row is null ? "" : "Deadline details for " + row.Heading;
+        }
+        public override void Draw(SKCanvas canvas)
+        {
+            if (Row is not { } row) return;
+            using var paint = GetPaint(); paint.Color = GetColor(IsMouseDown ? Col.White.Override(a: 0.13f) : IsHovering ? Col.White.Override(a: 0.09f) : Theme.WidgetBackground).Value();
+            canvas.DrawRoundRect(GetRect(), paint);
+            float x = Position.X, y = Position.Y;
+            using var titlePaint = new SKPaint { Typeface = Res.InterBold, TextSize = 13 };
+            string title = Fit(row.Heading, titlePaint, 133);
+            DrawText(canvas, title, x + 11, y + 17, 13, GetColor(Theme.TextMain), bold: true);
+            float badgeX = x + 18 + titlePaint.MeasureText(title);
+            using var badge = GetPaint(); badge.Color = GetColor(Theme.WidgetBackground).Value(); canvas.DrawRoundRect(SKRect.Create(badgeX, y + 6, 35, 16), 5, 5, badge);
+            DrawText(canvas, "CCF " + row.Rank, badgeX + 17.5f, y + 14, 9, GetColor(Theme.TextSecond), centered: true, middle: true);
+            string kind = row.Deadline.Kind == "abstract" ? "Abstract" : "Submission";
+            string metadata = kind + " · " + row.Deadline.Utc.ToLocalTime().ToString("MMM dd, HH:mm", CultureInfo.InvariantCulture);
+            DrawText(canvas, metadata, x + 11, y + 36, 10.5f, GetColor(Theme.TextSecond), maxWidth: 176);
+            DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + 276, y + 24, 14, GetColor(Theme.TextMain), right: true, middle: true, maxWidth: 83);
+        }
+    }
+    private sealed class Label : UIObject
+    {
+        public string Text { get; set; } = "";
+        public bool Bold { get; set; }
+        public bool Center { get; set; }
+        private readonly float _fontSize;
+        private readonly Col _textColor;
+        public Label(IslandObject island, float x, float y, float width, float height, float size, Col color) : base(island, new Vec2(x, y), new Vec2(width, height), UIAlignment.TopLeft)
+        { Anchor = Vec2.zero; _fontSize = size; _textColor = color; }
+        public override void Draw(SKCanvas canvas) => DrawText(canvas, Text, Position.X + (Center ? Size.X / 2 : 0), Position.Y + Size.Y / 2, _fontSize, GetColor(_textColor), Bold, centered: Center, middle: true, maxWidth: Size.X);
+    }
+    private sealed class DeadlinePanel : UIObject
+    {
+        public DeadlinePoint? Point { get; set; }
+        public DeadlinePanel(IslandObject island, float x, float y, float width, float height) : base(island, new Vec2(x, y), new Vec2(width, height), UIAlignment.TopLeft) { Anchor = Vec2.zero; roundRadius = 11; }
+        public override void Draw(SKCanvas canvas)
+        {
+            if (Point is not { } point) return;
+            using var background = GetPaint(); background.Color = GetColor(Theme.WidgetBackground).Value(); canvas.DrawRoundRect(GetRect(), background);
+            float x = Position.X + 12, y = Position.Y;
+            DrawText(canvas, point.Kind == "abstract" ? "Abstract deadline" : "Submission deadline", x, y + 19, 11.5f, GetColor(Theme.TextMain), bold: true, maxWidth: 174);
+            DrawText(canvas, Remaining(point.Utc - DateTimeOffset.UtcNow), Position.X + Size.X - 12, y + 19, 10.5f, GetColor(Theme.TextSecond), right: true);
+            DrawText(canvas, "Local   " + point.Utc.ToLocalTime().ToString("MMM dd, HH:mm  zzz", CultureInfo.InvariantCulture), x, y + 40, 11, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
+            DrawText(canvas, "Source   " + point.SourceTime + " " + point.Timezone, x, y + 59, 10.5f, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
+        }
+    }
+    private static void DrawText(SKCanvas canvas, string value, float x, float y, float size, Col color, bool bold = false, bool centered = false, bool right = false, bool middle = false, float maxWidth = float.MaxValue)
+    {
+        using var paint = new SKPaint { IsAntialias = true, Typeface = bold ? Res.InterBold : Res.InterRegular, TextSize = size, Color = color.Value(), SubpixelText = false };
+        string text = Fit(value ?? "", paint, maxWidth);
+        float width = paint.MeasureText(text);
+        if (centered) x -= width / 2; else if (right) x -= width;
+        if (middle) y -= (paint.FontMetrics.Ascent + paint.FontMetrics.Descent) / 2;
+        canvas.DrawText(text, x, y, paint);
+    }
+    private static string Fit(string text, SKPaint paint, float width)
+    {
+        if (paint.MeasureText(text) <= width) return text;
+        const string ellipsis = "…";
+        int length = text.Length;
+        while (length > 0 && paint.MeasureText(text[..length] + ellipsis) > width) length--;
+        return length == 0 ? ellipsis : text[..length] + ellipsis;
     }
 }

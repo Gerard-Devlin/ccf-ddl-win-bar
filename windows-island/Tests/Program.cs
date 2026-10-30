@@ -47,6 +47,9 @@ var later = editions[0] with { Id = "later30", Title = "LATER", Deadlines = [new
 Check(preferences.Visible([later, .. editions, .. editions], now).Count == 1, "Search is case-insensitive and editions are deduplicated");
 preferences.Search = "";
 Check(preferences.Visible([later, .. editions], now).First().Id == "test30", "Deadline ordering");
+var allPreferences = new Preferences { ItemCount = 3 };
+var allEditions = Enumerable.Range(0, 28).Select(index => later with { Id = "all-" + index });
+Check(allPreferences.Visible(allEditions, now).Count == 28, "All conferences ignores the legacy short-list limit");
 Check(DeadlineFormatting.Remaining(TimeSpan.FromDays(12) + TimeSpan.FromHours(22)) == "12天 22时", "Long countdown omits seconds");
 Check(!DeadlineFormatting.Remaining(TimeSpan.FromMilliseconds(400)).Contains("0秒"), "Positive subsecond deadline is not zero");
 Check(DeadlineFormatting.Remaining(TimeSpan.FromMinutes(1)) == "1分 0秒"
@@ -94,6 +97,7 @@ var cycleUids = cycleCalendar.Split("\r\n").Where(line => line.StartsWith("UID:"
 Check(cycleUids.Count == 2 && cycleUids.Distinct(StringComparer.Ordinal).Count() == 2, "Calendar deduplicates repeated points and gives concurrent tracks distinct event UIDs");
 var punctuationUrl = editions[0] with { Website = "https://example.com/track;round?areas=ai,db" };
 Check(CalendarExport.Create(punctuationUrl, now).Contains("URL:https://example.com/track;round?areas=ai,db\r\n"), "Calendar preserves URI punctuation in URL properties");
+PlacementChecks.Run(Check);
 if (args.Contains("--live", StringComparer.Ordinal))
 {
     using var live = new DeadlineService(Path.Combine(Path.GetTempPath(), "CcfIslandLiveCheck.json"));

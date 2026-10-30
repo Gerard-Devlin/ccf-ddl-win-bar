@@ -12,10 +12,14 @@ no closed V2 source is included or claimed. The 63 copied source/resource files
 retain their original paths under `Upstream/DynamicWin`; `VENDOR-MANIFEST.json`
 records their original SHA-256 hashes and sizes.
 
-The original UI objects, widget geometry, Skia renderer elements, `SecondOrder`
-motion, Inter/Cascadia font resources, and icon resources are reused. Application
-integration replaces media/system content with CCF conferences, deadline
-countdowns, ranking filters, time details, cached data, and calendar export.
+The original Skia drawing primitives, `SecondOrder` motion, Inter/Cascadia font
+resources, and icon resources are reused. Version 0.1.1 adapts the menu into a
+three-conference list and compact domain filters. The archived upstream snapshot
+remains byte-identical. Its `UI/UIObject.cs` is excluded from compilation in favor
+of `DynamicWinHost/Input/UIObject.cs`, which replaces frame-polled clicks with
+host mouse/keyboard events, input capture, explicit hit areas, and focus state.
+Other integration adds deadline details, cached data, calendar export, and
+physical-pixel primary-monitor placement.
 
 Third-party texts are included in `licenses/`:
 

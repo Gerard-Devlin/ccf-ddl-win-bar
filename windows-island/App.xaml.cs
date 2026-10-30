@@ -37,7 +37,9 @@ public partial class App : Application
             Shutdown();
             return;
         }
-        var window = new MainWindow(preview, e.Args.Contains("--demo"));
+        int diagnosticsIndex = Array.IndexOf(e.Args, "--diagnostics-file");
+        string? diagnostics = diagnosticsIndex >= 0 && diagnosticsIndex + 1 < e.Args.Length ? e.Args[diagnosticsIndex + 1] : null;
+        var window = new MainWindow(preview, e.Args.Contains("--demo"), diagnostics);
         MainWindow = window;
         window.Show();
         _ = ListenAsync(window);

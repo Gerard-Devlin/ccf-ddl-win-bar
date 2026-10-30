@@ -8,6 +8,7 @@
     <Compile Include="..\Services\DeadlineService.cs" Link="Services\DeadlineService.cs" />
     <Compile Include="..\Services\Preferences.cs" Link="Services\Preferences.cs" />
     <Compile Include="..\Services\CalendarExport.cs" Link="Services\CalendarExport.cs" />
+    <Compile Include="..\Services\Placement\PrimaryPlacement.cs" Link="Services\Placement\PrimaryPlacement.cs" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 </Project>

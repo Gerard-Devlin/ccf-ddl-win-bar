@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -22,6 +23,7 @@ public partial class MainWindow : Window
 {
     private readonly bool _preview, _demo;
     private readonly string _settingsPath;
+    private readonly string? _diagnosticsPath;
     private readonly DeadlineService _service;
     private readonly ConferenceModel _model;
     private readonly CancellationTokenSource _shutdown = new();
@@ -29,14 +31,16 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _refresh = new() { Interval = TimeSpan.FromMinutes(10) };
     private DeadlineSnapshot? _snapshot;
     private Forms.NotifyIcon? _tray;
-    private bool _quitting, _hiddenByUser, _modalOpen, _hiddenByFullscreen;
+    private bool _quitting, _hiddenByUser, _modalOpen, _hiddenByFullscreen, _contextMenuOpen;
+    private IDisposable? _placement;
     private string _error = "";
     public RendererMain Renderer { get; }
     public void PrepareOffscreenPreview() { _snapshot = DemoSnapshot(); UpdateData(); }
 
-    public MainWindow(bool preview = false, bool demo = false)
+    public MainWindow(bool preview = false, bool demo = false, string? diagnosticsPath = null)
     {
         _preview = preview; _demo = demo;
+        _diagnosticsPath = diagnosticsPath;
         string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), preview ? "CCFDeadlineIslandPreview" : "CCFDeadlineIsland");
         _settingsPath = Path.Combine(folder, "settings.json");
         _service = new DeadlineService(Path.Combine(folder, "deadlines.json"));
@@ -50,9 +54,10 @@ public partial class MainWindow : Window
         Renderer = new RendererMain(_model);
         _model.TogglePin = () => Renderer.ForceExpanded = !Renderer.ForceExpanded;
         Renderer.ContextMenu = MakeContextMenu();
-        Renderer.MouseLeftButtonDown += (_, _) => { Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate(); };
-        Renderer.MouseLeave += (_, _) => Renderer.ForceCollapsed = false;
+        Renderer.ContextMenuOpening += (_, _) => _contextMenuOpen = true;
+        Renderer.ContextMenuClosing += (_, _) => _contextMenuOpen = false;
         RenderRoot.Children.Add(Renderer);
+        _placement = WindowPlacement.AttachPrimary(this);
         if (preview) { ShowInTaskbar = true; Topmost = false; Title += " — Preview"; }
         Loaded += OnLoaded; Closing += OnClosing; Closed += OnClosed;
         _clock.Tick += (_, _) => Tick();
@@ -61,16 +66,11 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(HitTest);
-        var screens = Forms.Screen.AllScreens;
-        var screen = screens[Math.Clamp(_model.Preferences.Monitor, 0, screens.Length - 1)];
-        var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? System.Windows.Media.Matrix.Identity;
-        var origin = transform.Transform(new System.Windows.Point(screen.WorkingArea.Left, screen.WorkingArea.Top));
-        var size = transform.Transform(new System.Windows.Point(screen.WorkingArea.Width, screen.WorkingArea.Height));
-        Left = origin.X + (size.X - Width) / 2; Top = origin.Y;
         if (!_preview) { CreateTray(); WindowPlacement.RegisterShortcut(this, () => { if (Renderer.ForceExpanded) Collapse(); else Reveal(); }); }
         _snapshot = _demo ? DemoSnapshot() : _service.ReadCache();
         UpdateData(); _clock.Start(); _refresh.Start();
         if (_preview) Reveal();
+        WriteDiagnostics();
         if (!_demo) await RefreshAsync();
     }
     private IntPtr HitTest(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -82,11 +82,22 @@ public partial class MainWindow : Window
         return IntPtr.Zero;
     }
     public void Reveal() { _hiddenByUser = false; _hiddenByFullscreen = false; Show(); Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate(); Renderer.Focus(); }
-    private void Collapse() { Renderer.ForceExpanded = false; Renderer.ForceCollapsed = true; Renderer.Menu.ShowPage("widgets"); }
-    private void WindowDeactivated(object? sender, EventArgs e) { if (!_preview && !_modalOpen) Collapse(); }
+    private void Collapse() { Renderer.Input.CancelAll(); Renderer.ForceExpanded = false; Renderer.ForceCollapsed = true; Renderer.Menu.ShowPage("widgets"); }
+    private void WindowMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left) return;
+        Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate();
+    }
+    private void WindowDeactivated(object? sender, EventArgs e)
+    {
+        Renderer.Input.CancelAll();
+        if (!_preview && !_modalOpen && !_contextMenuOpen) Collapse();
+    }
     private void WindowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        switch (e.Key) { case Key.Escape: Collapse(); break; case Key.Left: Renderer.Menu.SelectRelative(-1); break; case Key.Right: Renderer.Menu.SelectRelative(1); break; case Key.Enter: OpenWebsite(); break; case Key.F5: _ = RefreshAsync(); break; default: return; }
+        if (e.Key == Key.Escape) { Collapse(); e.Handled = true; return; }
+        if (Renderer.Input.HandleKey(e.Key, Keyboard.Modifiers)) { e.Handled = true; return; }
+        switch (e.Key) { case Key.F5: _ = RefreshAsync(); break; default: return; }
         e.Handled = true;
     }
     private ContextMenu MakeContextMenu()
@@ -130,10 +141,47 @@ public partial class MainWindow : Window
     private void Tick()
     {
         UpdateData();
+        WriteDiagnostics();
         if (_preview || _hiddenByUser) return;
         bool fullscreen = WindowPlacement.ForegroundIsFullscreen(this);
         if (fullscreen && !_hiddenByFullscreen) { _hiddenByFullscreen = true; Collapse(); Hide(); }
         else if (!fullscreen && _hiddenByFullscreen) { _hiddenByFullscreen = false; Show(); }
+    }
+    private void WriteDiagnostics()
+    {
+        if (_diagnosticsPath is null) return;
+        try
+        {
+            var folder = Path.GetDirectoryName(Path.GetFullPath(_diagnosticsPath))!;
+            Directory.CreateDirectory(folder);
+            var controls = Renderer.Menu.Controls.ToDictionary(pair => pair.Key, pair =>
+            {
+                var bounds = pair.Value.GetInteractionRect().Rect;
+                return new { enabled = pair.Value.ImmediateInputEnabled, left = bounds.Left, top = bounds.Top, width = bounds.Width, height = bounds.Height };
+            });
+            var placement = WindowPlacement.GetPrimaryDiagnostics(this);
+            var island = Renderer.MainIsland.GetRect().Rect;
+            double islandCenterPixels = placement.ClientScreen.Left + island.MidX * placement.Dpi / 96.0;
+            var snapshot = new
+            {
+                version = typeof(MainWindow).Assembly.GetName().Version?.ToString(),
+                page = Renderer.Menu.Page,
+                primaryPlacement = placement,
+                island = new { left = island.Left, top = island.Top, width = island.Width, height = island.Height,
+                    centerPixels = islandCenterPixels, centerDeviationPixels = islandCenterPixels - placement.PrimaryCenterX },
+                input = new { downs = Renderer.RoutedPointerDownCount, ups = Renderer.RoutedPointerUpCount,
+                    focused = Renderer.Input.FocusedTarget?.InputIdentity, captured = Renderer.Input.CapturedTarget?.InputIdentity,
+                    pinned = Renderer.ForceExpanded, dismissed = Renderer.ForceCollapsed },
+                ccf = _model.Preferences.Ccf.ToArray(), withinDays = _model.Preferences.WithinDays,
+                submissionOnly = _model.Preferences.SubmissionOnly,
+                reducedMotion = _model.Preferences.ReducedMotion,
+                controls,
+                recordedAt = DateTimeOffset.UtcNow
+            };
+            File.WriteAllText(_diagnosticsPath, JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or Win32Exception or InvalidOperationException)
+        { Debug.WriteLine($"Preview diagnostics unavailable: {error.Message}"); }
     }
     private ConferenceEdition? Selected => _model.Rows.ElementAtOrDefault(_model.SelectedIndex)?.Conference;
     private void OpenWebsite()
@@ -164,7 +212,7 @@ public partial class MainWindow : Window
     private void SavePreferences() { bool saved = _preview || _model.Preferences.Save(_settingsPath); UpdateData(); if (!saved) _model.Status = "Settings could not be saved"; }
     private void OnClosing(object? sender, CancelEventArgs e) { if (!_quitting) { e.Cancel = true; _hiddenByUser = true; Collapse(); Hide(); } }
     private void Quit() { _quitting = true; System.Windows.Application.Current.Shutdown(); }
-    private void OnClosed(object? sender, EventArgs e) { _shutdown.Cancel(); _clock.Stop(); _refresh.Stop(); WindowPlacement.UnregisterShortcut(this); Renderer.Dispose(); _tray?.Dispose(); _service.Dispose(); }
+    private void OnClosed(object? sender, EventArgs e) { _shutdown.Cancel(); _clock.Stop(); _refresh.Stop(); _placement?.Dispose(); WindowPlacement.UnregisterShortcut(this); Renderer.Dispose(); _tray?.Dispose(); _service.Dispose(); }
     public static DeadlineSnapshot DemoSnapshot()
     {
         var now = DateTimeOffset.UtcNow; var rows = new List<ConferenceEdition>();

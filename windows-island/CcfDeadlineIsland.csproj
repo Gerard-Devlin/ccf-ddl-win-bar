@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>CCF Deadline Island</AssemblyName>
     <RootNamespace>CcfDeadlineIsland</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Description>CCF conference deadlines using DynamicWin's original UI controls</Description>
     <PackageLicenseExpression>CC-BY-SA-4.0</PackageLicenseExpression>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
@@ -25,6 +25,8 @@
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
     <Resource Include="Assets\icon.ico" />
     <Compile Remove="Tests\**\*.cs" />
+    <!-- Keep the upstream snapshot intact; compile the host input adaptation instead. -->
+    <Compile Remove="Upstream\DynamicWin\UI\UIObject.cs" />
     <None Update="LICENSE;NOTICE.md;licenses\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <None Update="Upstream\DynamicWin\Resources\**\*;Upstream\DynamicWin\LICENSE;Upstream\DynamicWin\VENDOR-MANIFEST.json;Upstream\DynamicWin\FONT-LICENSE-METADATA.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>

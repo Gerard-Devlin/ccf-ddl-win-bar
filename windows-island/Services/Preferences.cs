@@ -36,7 +36,7 @@ public sealed class Preferences
                 && Categories.Contains(item.Conference.Area) && (string.IsNullOrWhiteSpace(Search)
                     || item.Conference.Heading.Contains(Search, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(item => item.Deadline!.Utc).DistinctBy(item => item.Conference.Id, StringComparer.OrdinalIgnoreCase)
-            .Take(ItemCount).Select(item => new DeadlineRow(item.Conference, item.Deadline!, now)).ToList();
+            .Select(item => new DeadlineRow(item.Conference, item.Deadline!, now)).ToList();
     }
 
     public static Preferences Load(string path)

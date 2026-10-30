@@ -1,8 +1,12 @@
 # CCF Deadline Island
 
 Windows 灵动岛版 CCF 截止时间工具。界面直接使用
-[DynamicWin](https://github.com/FlorianButz/DynamicWin) 的原始控件、字体、图标与动画，
-把内容替换成 CCF 会议和倒计时。
+[DynamicWin](https://github.com/FlorianButz/DynamicWin) 的黑色外壳、Inter 字体、图标和弹簧动画，
+以最近三场会议及截止时间为主界面。
+
+![Upcoming conferences](docs/screenshots/upcoming.png)
+
+0.1.1 的实际渲染截图与验收记录见 [QA-0.1.1](docs/QA-0.1.1.md)。
 
 上游默认 `V2` 分支只提供发行文件。本项目使用其公开 `main` 分支的源码，固定在
 `9f24d176a16333b1cfda21dd3ed48087497194ed`；63 个原始源码/资源文件及许可证位于
@@ -11,8 +15,10 @@ Windows 灵动岛版 CCF 截止时间工具。界面直接使用
 ## 使用
 
 - 悬停展开；点击固定。`Esc` 收起，`Ctrl+Alt+D` 展开/收起。
-- 左右箭头切换会议，`Enter` 打开当前会议官网，`F5` 刷新。
-- 会议列表、截止详情、筛选和设置使用原始 DynamicWin 控件。
+- 固定在 Windows 主显示器的顶部中心；显示器、DPI 或任务栏变化后自动重算位置。
+- 点击会议行查看详情，详情中的 **Website** 打开官网。`F5` 刷新。
+- `Tab` / `Shift+Tab` 切换控件，空格或 `Enter` 激活；筛选复选框文字与方框均可点击。
+- 筛选即时生效并保存；**Display** 中单独设置动画，**Reset** 仅重置筛选。
 - 数据每十分钟刷新，支持镜像回退和离线缓存；摘要截止后自动切换到下一有效截止。
 - 详情可复制时间并导出 `.ics` 日历文件。
 
@@ -35,8 +41,8 @@ dotnet run --project windows-island/CcfDeadlineIsland.csproj
 输出：
 
 ```text
-artifacts/windows-island-0.1.0/
-artifacts/CCF-Deadline-Island_0.1.0_x64-setup.exe
+artifacts/windows-island-0.1.1/
+artifacts/CCF-Deadline-Island_0.1.1_x64-setup.exe
 ```
 
 `./windows-island/Build.ps1 -PublishOnly` 只生成自包含应用。分发整个输出目录，以保留字体、图标和许可证文件。
@@ -52,7 +58,8 @@ dotnet 'windows-island/bin/Release/net8.0-windows/CCF Deadline Island.dll' --ren
 ```
 
 发布后的单文件 EXE 也支持 `--render-preview <输出目录>`。输出包括 `preview.png`、各界面 PNG、
-`geometry.json` 和 `checks.txt`。数据测试不依赖桌面 UI；实时数据检查不写入正式缓存。
+`geometry.json` 和 `checks.txt`。界面检查通过 WPF 路由的按下/抬起事件验证命中与捕获，
+并覆盖键盘、快速点击、隐藏控件和数据变化。数据测试不依赖桌面 UI；实时数据检查不写入正式缓存。
 
 ## 来源与许可
 
