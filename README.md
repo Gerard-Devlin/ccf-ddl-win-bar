@@ -21,19 +21,20 @@ A lightweight Windows system-tray companion for tracking upcoming computer-scien
 
 ## Overview
 
-CCF Deadlines Tray keeps the next conference deadlines one hover away. It lives in the Windows notification area, opens a compact deadline panel when the pointer reaches the tray icon, and disappears when the pointer moves away.
+CCF Deadlines Tray keeps the next conference deadlines one hover away. Hover the notification-area icon for a temporary preview, or left-click to pin and focus the panel. Click again, press Esc, or switch windows to close it. Launching the app again opens the existing instance.
 
-There is no conventional main window and no bundled conference database. The application reads the dataset published by [CCF Deadlines](https://github.com/ccfddl/ccf-deadlines), converts deadline time zones locally, and keeps countdowns accurate to the second.
+The application reads the dataset published by [CCF Deadlines](https://github.com/ccfddl/ccf-deadlines), converts deadline time zones locally, and caches the last successful response for offline use.
 
 ## Highlights
 
-- **Hover-first tray experience** — check deadlines without opening a full desktop window.
+- **Hover preview and pinning** — preview quickly, or keep the panel open for mouse and keyboard interaction.
 - **Live countdowns** — remaining time updates every second.
 - **Complete deadline details** — inspect abstract, submission, cycle, source-time, and local-time information.
 - **Fast filtering** — filter by CCF, CORE, THCPL, and research area.
 - **Direct conference links** — select a conference to open its official website.
 - **Flexible display** — choose the date range, visible item count, and system, dark, or light appearance.
 - **Windows integration** — optional launch at startup, single-instance behavior, multi-monitor support, and taskbar-aware placement.
+- **Offline recovery** — preserve loaded data on refresh failure, restore the local cache on restart, and retry manually.
 - **No accounts or telemetry** — preferences remain on the current Windows account.
 
 ## Install
@@ -58,11 +59,13 @@ WebView2 is included with current Windows installations. When it is missing, the
 
 1. Hover over the tray icon to show the deadline panel.
 2. Move the pointer into the panel to keep it open.
+   Left-click the tray icon or use **Pin** to keep it open after moving the pointer away.
 3. Hover over a conference row to see every upcoming deadline in both its source timezone and your local timezone.
 4. Select a conference to open its official website.
 5. Use **Filter** to narrow the list by ranking system or research area.
 6. Use **Display** to change the date range, item count, color mode, or startup behavior.
-7. Right-click the tray icon and choose **Exit CCF Deadlines** to quit.
+7. Use **Refresh / Retry** in the footer to update immediately. Hover the status for the full error and last-update timestamp.
+8. Right-click the tray icon for **Show**, **Refresh**, or **Exit CCF Deadlines**.
 
 ## Filters and display
 
@@ -86,7 +89,7 @@ The application downloads the combined conference dataset from:
 1. `https://ccfddl.com/conference/allconf.yml`
 2. `https://ccfddl.github.io/conference/allconf.yml` as a fallback
 
-Data is fetched when the application starts and refreshed every 10 minutes. Countdown values are calculated locally and refreshed once per second. Expired deadlines are omitted, and only the nearest future deadline for each conference edition is shown in the main list.
+Data is fetched when the application starts and refreshed every 10 minutes. Failed HTTP requests or YAML parsing fall back to the mirror. A failed refresh preserves the last successful data and timestamp. Countdown values are calculated locally; expired abstract deadlines advance to the next submission or cycle, and editions with no future deadline disappear.
 
 The application has no account system, analytics, advertising, or telemetry. It does not upload personal information. Selecting a conference only opens its official URL in the default browser.
 
@@ -169,4 +172,4 @@ Issues and pull requests are welcome.
 
 ## License
 
-Distributed under the [MIT License](LICENSE).
+Distributed under the [Apache License 2.0](LICENSE).

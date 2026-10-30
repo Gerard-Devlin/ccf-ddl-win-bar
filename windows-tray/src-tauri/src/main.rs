@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{
     AppHandle, Manager, PhysicalPosition, PhysicalSize, Rect,
     menu::{Menu, MenuItem},
-    tray::{TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_opener::OpenerExt;
@@ -25,6 +25,7 @@ const DATA_URLS: [&str; 2] = [
     "https://ccfddl.github.io/conference/allconf.yml",
 ];
 const POPOVER_LABEL: &str = "popover";
+const TRAY_ID: &str = "ccf-deadlines";
 const HIDE_DELAY: Duration = Duration::from_millis(430);
 const BASE_POPOVER_WIDTH: u32 = 240;
 const GROUP_FLYOUT_WIDTH: u32 = 440;
@@ -32,6 +33,7 @@ const OPTIONS_FLYOUT_WIDTH: u32 = 640;
 
 #[derive(Default)]
 struct HoverState {
+    pinned: AtomicBool,
     tray_hovered: AtomicBool,
     window_hovered: AtomicBool,
     hide_generation: AtomicU64,
@@ -238,8 +240,15 @@ async fn fetch_deadlines() -> Result<Vec<DeadlineItem>, String> {
         .build()
         .map_err(|error| format!("Unable to create the network client: {error}"))?;
 
+    fetch_deadlines_from_urls(&client, &DATA_URLS).await
+}
+
+async fn fetch_deadlines_from_urls(
+    client: &reqwest::Client,
+    urls: &[&str],
+) -> Result<Vec<DeadlineItem>, String> {
     let mut last_error = String::new();
-    for url in DATA_URLS {
+    for &url in urls {
         let response = match client.get(url).send().await {
             Ok(response) => response,
             Err(error) => {
@@ -264,13 +273,18 @@ async fn fetch_deadlines() -> Result<Vec<DeadlineItem>, String> {
             }
         };
 
-        let conferences: Vec<Conference> = serde_yaml::from_str(&yaml)
-            .map_err(|error| format!("Invalid conference data: {error}"))?;
+        let conferences: Vec<Conference> = match serde_yaml::from_str(&yaml) {
+            Ok(conferences) => conferences,
+            Err(error) => {
+                last_error = format!("Invalid conference data from {url}: {error}");
+                continue;
+            }
+        };
         return Ok(collect_deadlines(conferences, Utc::now()));
     }
 
     Err(format!(
-        "Unable to connect to the CCF Deadlines data source: {last_error}"
+        "Unable to load the CCF Deadlines data sources: {last_error}"
     ))
 }
 
@@ -346,19 +360,100 @@ fn schedule_hide(app: AppHandle, state: Arc<HoverState>) {
     let generation = state.hide_generation.fetch_add(1, Ordering::SeqCst) + 1;
     std::thread::spawn(move || {
         std::thread::sleep(HIDE_DELAY);
-        if state.hide_generation.load(Ordering::SeqCst) != generation
-            || state.tray_hovered.load(Ordering::SeqCst)
-            || state.window_hovered.load(Ordering::SeqCst)
-        {
-            return;
-        }
-
-        if let Some(window) = app.get_webview_window(POPOVER_LABEL) {
-            let _ = window.hide();
-            let _ = window.eval("window.resetFilterFlyouts?.()");
-        }
-        let _ = resize_popover(&app, BASE_POPOVER_WIDTH);
+        let main_app = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if state.hide_generation.load(Ordering::SeqCst) != generation
+                || state.pinned.load(Ordering::SeqCst)
+                || state.tray_hovered.load(Ordering::SeqCst)
+                || state.window_hovered.load(Ordering::SeqCst)
+            {
+                return;
+            }
+            hide_popover(&main_app, &state);
+        });
     });
+}
+
+fn update_pinned(app: &AppHandle, state: &HoverState, pinned: bool) {
+    state.pinned.store(pinned, Ordering::SeqCst);
+    state.hide_generation.fetch_add(1, Ordering::SeqCst);
+    if let Some(window) = app.get_webview_window(POPOVER_LABEL) {
+        let _ = window.eval(format!("window.setPopoverPinned?.({pinned})"));
+    }
+}
+
+fn hide_popover(app: &AppHandle, state: &HoverState) {
+    update_pinned(app, state, false);
+    state.window_hovered.store(false, Ordering::SeqCst);
+    if let Some(window) = app.get_webview_window(POPOVER_LABEL) {
+        let _ = window.hide();
+        let _ = window.set_focusable(false);
+        let _ = window.eval("window.resetFilterFlyouts?.()");
+    }
+    let _ = resize_popover(app, BASE_POPOVER_WIDTH);
+}
+
+fn show_pinned_popover(app: &AppHandle, state: &HoverState) {
+    update_pinned(app, state, true);
+    if let Some(window) = app.get_webview_window(POPOVER_LABEL) {
+        let _ = window.set_focusable(true);
+        if !window.is_visible().unwrap_or(false) {
+            if let Some(rect) = app
+                .tray_by_id(TRAY_ID)
+                .and_then(|tray| tray.rect().ok().flatten())
+            {
+                let scale = window.scale_factor().unwrap_or(1.0);
+                let position = rect.position.to_physical::<f64>(scale);
+                let size = rect.size.to_physical::<f64>(scale);
+                position_popover(
+                    app,
+                    PhysicalPosition::new(
+                        position.x + size.width / 2.0,
+                        position.y + size.height / 2.0,
+                    ),
+                    rect,
+                );
+            } else {
+                let _ = window.center();
+            }
+        }
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+#[tauri::command]
+fn get_popover_pinned(state: tauri::State<'_, Arc<HoverState>>) -> bool {
+    state.pinned.load(Ordering::SeqCst)
+}
+
+#[tauri::command]
+fn set_popover_pinned(app: AppHandle, state: tauri::State<'_, Arc<HoverState>>, pinned: bool) {
+    if pinned {
+        show_pinned_popover(&app, &state);
+    } else {
+        update_pinned(&app, &state, false);
+        if let Some(window) = app.get_webview_window(POPOVER_LABEL) {
+            let _ = window.set_focusable(false);
+        }
+        schedule_hide(app, Arc::clone(state.inner()));
+    }
+}
+
+#[tauri::command]
+fn dismiss_popover(app: AppHandle, state: tauri::State<'_, Arc<HoverState>>) {
+    hide_popover(&app, &state);
+}
+
+fn dismiss_if_unfocused(app: &AppHandle, state: &HoverState) {
+    if state.pinned.load(Ordering::SeqCst)
+        && !state.tray_hovered.load(Ordering::SeqCst)
+        && app
+            .get_webview_window(POPOVER_LABEL)
+            .is_some_and(|window| !window.is_focused().unwrap_or(true))
+    {
+        hide_popover(app, state);
+    }
 }
 
 fn position_popover(app: &AppHandle, cursor: PhysicalPosition<f64>, tray_rect: Rect) {
@@ -442,8 +537,12 @@ fn position_popover(app: &AppHandle, cursor: PhysicalPosition<f64>, tray_rect: R
 fn show_popover(app: &AppHandle, state: &HoverState, position: PhysicalPosition<f64>, rect: Rect) {
     state.tray_hovered.store(true, Ordering::SeqCst);
     state.hide_generation.fetch_add(1, Ordering::SeqCst);
+    if state.pinned.load(Ordering::SeqCst) {
+        return;
+    }
     position_popover(app, position, rect);
     if let Some(window) = app.get_webview_window(POPOVER_LABEL) {
+        let _ = window.set_focusable(false);
         let _ = window.show();
     }
 }
@@ -463,7 +562,10 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(
-            |_app, _args, _working_directory| {},
+            |app, _args, _working_directory| {
+                let state = app.state::<Arc<HoverState>>();
+                show_pinned_popover(app, &state);
+            },
         ))
         .manage(Arc::clone(&hover_state))
         .invoke_handler(tauri::generate_handler![
@@ -472,7 +574,10 @@ fn main() {
             get_autostart_enabled,
             set_autostart_enabled,
             set_flyout_level,
-            set_window_hovered
+            set_window_hovered,
+            get_popover_pinned,
+            set_popover_pinned,
+            dismiss_popover
         ])
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -480,22 +585,43 @@ fn main() {
         ))
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
+            let show = MenuItem::with_id(app, "show", "Show CCF Deadlines", true, None::<&str>)?;
+            let refresh = MenuItem::with_id(app, "refresh", "Refresh", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Exit CCF Deadlines", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&quit])?;
+            let menu = Menu::with_items(app, &[&show, &refresh, &quit])?;
             let tray_state = Arc::clone(&hover_state);
 
-            let mut tray_builder = TrayIconBuilder::with_id("ccf-deadlines")
-                .tooltip("CCF Deadlines")
+            let mut tray_builder = TrayIconBuilder::with_id(TRAY_ID)
+                .tooltip("CCF Deadlines — hover to preview, click to pin")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| {
-                    if event.id.as_ref() == "quit" {
-                        app.exit(0);
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" | "refresh" => {
+                        let state = app.state::<Arc<HoverState>>();
+                        show_pinned_popover(app, &state);
+                        if event.id.as_ref() == "refresh" {
+                            if let Some(window) = app.get_webview_window(POPOVER_LABEL) {
+                                let _ = window.eval("window.refreshDeadlines?.()");
+                            }
+                        }
                     }
+                    "quit" => app.exit(0),
+                    _ => {}
                 })
                 .on_tray_icon_event(move |tray, event| {
                     let app = tray.app_handle();
                     match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } => {
+                            if tray_state.pinned.load(Ordering::SeqCst) {
+                                hide_popover(app, &tray_state);
+                            } else {
+                                show_pinned_popover(app, &tray_state);
+                            }
+                        }
                         TrayIconEvent::Enter { position, rect, .. } => {
                             show_popover(app, &tray_state, position, rect);
                         }
@@ -505,6 +631,7 @@ fn main() {
                         }
                         TrayIconEvent::Leave { .. } => {
                             tray_state.tray_hovered.store(false, Ordering::SeqCst);
+                            dismiss_if_unfocused(app, &tray_state);
                             schedule_hide(app.clone(), Arc::clone(&tray_state));
                         }
                         _ => {}
@@ -517,9 +644,19 @@ fn main() {
             tray_builder.build(app)?;
 
             if let Some(window) = app.get_webview_window(POPOVER_LABEL) {
-                window.on_window_event(|event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        api.prevent_close();
+                let window_app = app.handle().clone();
+                let window_state = Arc::clone(&hover_state);
+                window.on_window_event(move |event| {
+                    match event {
+                        tauri::WindowEvent::CloseRequested { api, .. } => {
+                            api.prevent_close();
+                            hide_popover(&window_app, &window_state);
+                        }
+                        // A tray click also takes focus; let its click handler toggle the pin.
+                        tauri::WindowEvent::Focused(false) => {
+                            dismiss_if_unfocused(&window_app, &window_state)
+                        }
+                        _ => {}
                     }
                 });
             }
@@ -533,6 +670,51 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn falls_back_to_mirror_when_primary_yaml_is_invalid() {
+        use std::{
+            io::{Read, Write},
+            net::TcpListener,
+        };
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = server.local_addr().unwrap();
+        let worker = std::thread::spawn(move || {
+            for body in [
+                "not: [valid",
+                "- title: MIRROR\n  sub: AI\n  confs:\n    - year: 2099\n      id: mirror99\n      timeline:\n        - deadline: '2099-01-01 00:00:00'\n",
+            ] {
+                let (mut stream, _) = server.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut request = [0; 4096];
+                stream.read(&mut request).unwrap();
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .unwrap();
+            }
+        });
+        let primary = format!("http://{address}/primary");
+        let mirror = format!("http://{address}/mirror");
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+        let deadlines = tauri::async_runtime::block_on(fetch_deadlines_from_urls(
+            &client,
+            &[&primary, &mirror],
+        ))
+        .unwrap();
+        assert_eq!(deadlines.len(), 1);
+        assert_eq!(deadlines[0].id, "mirror99");
+        worker.join().unwrap();
+    }
 
     #[test]
     fn parses_aoe_and_utc_offsets() {

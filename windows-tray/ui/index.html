@@ -27,7 +27,7 @@
         <div class="filter-groups" id="filter-groups"></div>
       </aside>
 
-      <section class="menu menu--primary" aria-live="polite">
+      <section class="menu menu--primary">
       <div class="menu-view menu-view--active" id="main-view">
         <section class="menu-section menu-section--next">
           <h1>Next</h1>
@@ -104,6 +104,11 @@
         <div class="separator" aria-hidden="true"></div>
         <button class="reset-button" id="reset-settings" type="button">Reset defaults</button>
       </div>
+      <footer class="panel-status">
+        <span class="data-status" id="data-status" role="status">Loading…</span>
+        <button id="pin-panel" type="button" aria-pressed="false" title="Keep the panel open while using it">Pin</button>
+        <button id="refresh-deadlines" type="button">Refresh</button>
+      </footer>
       </section>
     </main>
 

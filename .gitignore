@@ -1,0 +1,4 @@
+/.upstream/
+/.tools/
+/artifacts/
+**/__pycache__/

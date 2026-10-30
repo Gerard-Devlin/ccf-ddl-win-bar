@@ -13,8 +13,12 @@ const withinDays = document.querySelector("#within-days");
 const displayCount = document.querySelector("#display-count");
 const colorMode = document.querySelector("#color-mode");
 const autostartToggle = document.querySelector("#autostart-toggle");
+const dataStatus = document.querySelector("#data-status");
+const refreshButton = document.querySelector("#refresh-deadlines");
+const pinButton = document.querySelector("#pin-panel");
 const invoke = window.__TAURI__?.core?.invoke;
 const systemColorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+const cacheKey = "ccf-tray-deadlines-v1";
 
 const ccfRanks = ["A", "B", "C", "N"];
 const coreRanks = ["A*", "A", "B", "C", "N"];
@@ -43,6 +47,12 @@ const filterDefinitions = {
 };
 
 let deadlines = [];
+let hasLoadedData = false;
+let lastUpdated = null;
+let loadError = "";
+let refreshing = false;
+let popoverPinned = false;
+let nextDeadlineChange = Infinity;
 let refreshTimer;
 let countdownTimer;
 let preferences = loadPreferences();
@@ -216,7 +226,7 @@ function renderDeadlineDetails(deadline) {
 }
 
 function formatRemaining(deadlineMs) {
-  const totalSeconds = Math.max(0, Math.floor((deadlineMs - Date.now()) / 1000));
+  const totalSeconds = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -234,6 +244,10 @@ function row(deadline) {
 }
 
 function updateCountdowns() {
+  if (Date.now() >= nextDeadlineChange) {
+    render();
+    return;
+  }
   document.querySelectorAll(".deadline-row[data-deadline-ms]").forEach((deadlineRow) => {
     const remaining = deadlineRow.querySelector(".deadline-remaining");
     if (remaining) remaining.textContent = formatRemaining(Number(deadlineRow.dataset.deadlineMs));
@@ -241,15 +255,26 @@ function updateCountdowns() {
 }
 
 function visibleDeadlines() {
-  const latest = Date.now() + preferences.withinDays * 86400000;
+  const now = Date.now();
+  const latest = now + preferences.withinDays * 86400000;
   const seen = new Set();
-  return deadlines.filter((deadline) => {
+  nextDeadlineChange = Infinity;
+  const upcoming = deadlines.flatMap((deadline) => {
+    const next = detailsFor(deadline).find((detail) => Number(detail.deadline_ms) > now);
+    if (!next) return [];
+    const deadlineMs = Number(next.deadline_ms);
+    nextDeadlineChange = Math.min(nextDeadlineChange, deadlineMs);
+    // A cached abstract deadline can expire while its submission is still ahead.
+    return [{ ...deadline, deadline_ms: deadlineMs, deadline_type: next.deadline_type }];
+  }).sort((left, right) => left.deadline_ms - right.deadline_ms);
+  return upcoming.filter((deadline) => {
     const conferenceId = deadline.id.toLowerCase();
     if (seen.has(conferenceId)
       || !preferences.ranks.includes(deadline.rank)
       || !preferences.coreRanks.includes(deadline.core_rank || "N")
       || !preferences.thcplRanks.includes(deadline.thcpl_rank || "N")
       || !preferences.categories.includes(deadline.sub)
+      || deadline.deadline_ms <= now
       || deadline.deadline_ms > latest) return false;
     seen.add(conferenceId);
     return true;
@@ -259,7 +284,7 @@ function visibleDeadlines() {
 function render() {
   const visible = visibleDeadlines().slice(0, preferences.displayCount);
   if (!visible.length) {
-    nextDeadline.innerHTML = '<div class="message">No matching conferences</div>';
+    nextDeadline.innerHTML = `<div class="message">${!hasLoadedData && loadError ? "Unable to load conference data" : "No matching conferences"}</div>`;
     list.innerHTML = "";
   } else {
     nextDeadline.innerHTML = row(visible[0]);
@@ -280,12 +305,22 @@ function render() {
 }
 
 function renderFilterGroups() {
-  filterGroups.innerHTML = Object.entries(filterDefinitions).map(([type, definition]) => {
+  if (!filterGroups.childElementCount) {
+    filterGroups.innerHTML = Object.entries(filterDefinitions).map(([type, definition]) =>
+      `<button class="filter-group-row" type="button" data-filter-group="${type}"><span>${definition.title}</span><span class="filter-group-summary"></span><span class="chevron">›</span></button>`
+    ).join("");
+  }
+  Object.entries(filterDefinitions).forEach(([type, definition]) => {
     const selected = preferences[definition.key].length;
     const summary = selected === definition.values.length ? "All" : selected === 0 ? "None" : `${selected}/${definition.values.length}`;
-    const active = flyoutKind === "filters" && flyoutLevel === 2 && type === currentFilterGroup ? " filter-group-row--active" : "";
-    return `<button class="filter-group-row${active}" type="button" data-filter-group="${type}"><span>${definition.title}</span><span class="filter-group-summary">${summary}</span><span class="chevron">›</span></button>`;
-  }).join("");
+    const button = filterGroups.querySelector(`[data-filter-group="${type}"]`);
+    const summaryElement = button.querySelector(".filter-group-summary");
+    if (summaryElement.textContent !== summary) summaryElement.textContent = summary;
+    const active = flyoutKind === "filters" && flyoutLevel === 2 && type === currentFilterGroup;
+    if (button.classList.contains("filter-group-row--active") !== active) {
+      button.classList.toggle("filter-group-row--active", active);
+    }
+  });
 }
 
 function renderFilterOptions() {
@@ -359,6 +394,7 @@ function applyFlyoutState(kind, level) {
 }
 
 async function setFlyoutState(kind, level) {
+  if (kind === flyoutKind && level === flyoutLevel) return;
   const needsResize = level !== flyoutLevel;
   applyFlyoutState(kind, level);
   if (invoke && needsResize) {
@@ -407,7 +443,8 @@ function openFilterFlyout(level) {
 }
 
 function openFilterGroup(group) {
-  if (!filterDefinitions[group]) return;
+  if (!filterDefinitions[group]
+    || (group === currentFilterGroup && flyoutKind === "filters" && flyoutLevel === 2)) return;
   currentFilterGroup = group;
   renderFilterOptions();
   openFilterFlyout(2);
@@ -439,20 +476,97 @@ async function loadAutostart() {
   renderAutostart();
 }
 
-async function loadDeadlines() {
-  if (!invoke) {
-    deadlines = previewDeadlines;
-    render();
-    return;
-  }
+function renderDataStatus() {
+  const updated = lastUpdated
+    ? `Updated ${new Date(lastUpdated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`
+    : "No saved data";
+  dataStatus.textContent = !invoke ? "Preview data"
+    : refreshing ? `Refreshing · ${updated}`
+    : loadError ? `Offline · ${updated}` : updated;
+  dataStatus.title = [loadError, lastUpdated ? `Last successful update: ${new Date(lastUpdated).toLocaleString()}` : ""].filter(Boolean).join("\n");
+  dataStatus.classList.toggle("data-status--offline", Boolean(loadError));
+  refreshButton.textContent = loadError ? "Retry" : "Refresh";
+  refreshButton.disabled = refreshing;
+}
+
+function isDeadlineData(value) {
+  return Array.isArray(value) && value.every((item) => item && typeof item.id === "string"
+    && typeof item.rank === "string" && typeof item.sub === "string"
+    && Number.isFinite(item.deadline_ms)
+    && [item.deadlines, item.deadline_details].every((details) => details === undefined
+      || (Array.isArray(details) && details.every((detail) => detail && Number.isFinite(detail.deadline_ms)))));
+}
+
+function loadCachedDeadlines() {
   try {
-    deadlines = await invoke("fetch_deadlines");
+    const cached = JSON.parse(localStorage.getItem(cacheKey));
+    if (!cached || !Number.isFinite(cached.updatedAt) || !isDeadlineData(cached.deadlines)) return;
+    deadlines = cached.deadlines;
+    lastUpdated = cached.updatedAt;
+    hasLoadedData = true;
     render();
   } catch {
-    nextDeadline.innerHTML = '<div class="message">Unable to load conference data</div>';
-    list.innerHTML = "";
+    // Storage can be unavailable or contain data from an interrupted write.
   }
 }
+
+function saveCachedDeadlines() {
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({ updatedAt: lastUpdated, deadlines }));
+  } catch {
+    // A storage failure must not discard a successful network response.
+  }
+}
+
+async function loadDeadlines() {
+  if (refreshing) return;
+  if (!invoke) {
+    deadlines = previewDeadlines;
+    hasLoadedData = true;
+    render();
+    renderDataStatus();
+    return;
+  }
+  refreshing = true;
+  renderDataStatus();
+  try {
+    const fetched = await invoke("fetch_deadlines");
+    if (!isDeadlineData(fetched)) throw new Error("Invalid conference data received");
+    deadlines = fetched;
+    hasLoadedData = true;
+    lastUpdated = Date.now();
+    loadError = "";
+    saveCachedDeadlines();
+  } catch (error) {
+    loadError = error instanceof Error ? error.message : String(error);
+  } finally {
+    refreshing = false;
+    render();
+    renderDataStatus();
+  }
+}
+
+window.refreshDeadlines = loadDeadlines;
+window.setPopoverPinned = (pinned) => {
+  popoverPinned = pinned;
+  pinButton.setAttribute("aria-pressed", String(pinned));
+  pinButton.textContent = pinned ? "Unpin" : "Pin";
+  pinButton.title = pinned ? "Pinned · Esc or focus loss closes the panel" : "Keep the panel open while using it";
+};
+pinButton.addEventListener("click", async () => {
+  if (invoke) await invoke("set_popover_pinned", { pinned: !popoverPinned });
+  else window.setPopoverPinned(!popoverPinned);
+});
+refreshButton.addEventListener("click", loadDeadlines);
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || event.defaultPrevented) return;
+  event.preventDefault();
+  if (invoke) invoke("dismiss_popover");
+  else {
+    window.setPopoverPinned(false);
+    window.resetFilterFlyouts();
+  }
+});
 
 openFiltersButton.addEventListener("pointerenter", () => openFilterFlyout(1));
 openFiltersButton.addEventListener("focus", () => openFilterFlyout(1));
@@ -586,6 +700,10 @@ window.addEventListener("DOMContentLoaded", () => {
   colorMode.value = preferences.colorMode;
   renderFilterGroups();
   renderFilterOptions();
+  if (invoke) {
+    loadCachedDeadlines();
+    invoke("get_popover_pinned").then(window.setPopoverPinned).catch(() => {});
+  }
   loadDeadlines();
   loadAutostart();
   refreshTimer = window.setInterval(loadDeadlines, 10 * 60 * 1000);

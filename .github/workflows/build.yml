@@ -37,6 +37,16 @@ jobs:
       - name: Test
         run: cargo test --manifest-path windows-tray/src-tauri/Cargo.toml --locked
 
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test tray UI in Microsoft Edge
+        run: |
+          python -m pip install -r windows-tray/tests/requirements.txt
+          python -m unittest discover -s windows-tray/tests -p 'ui_*.py' -v
+
       - name: Build NSIS installer
         working-directory: windows-tray
         run: cargo tauri build --bundles nsis --ci --no-sign -- --locked
