@@ -1,0 +1,78 @@
+name: Build Windows island
+
+on:
+  push:
+    paths:
+      - 'windows-island/**'
+      - '.github/workflows/build-island.yml'
+  pull_request:
+    paths:
+      - 'windows-island/**'
+      - '.github/workflows/build-island.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+  NUGET_PACKAGES: ${{ github.workspace }}\.tools\nuget
+
+jobs:
+  build-island:
+    name: Windows x64 island
+    runs-on: windows-2022
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Test conference data, cache, and calendar behavior
+        run: |
+          dotnet run --project windows-island/Tests/Island.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Find NSIS
+        run: |
+          $candidate = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'),
+            (Join-Path $env:ProgramFiles 'NSIS\makensis.exe')
+          ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $candidate) { throw 'NSIS was not found in the Windows runner image.' }
+          "MAKENSIS=$candidate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Publish app and build current-user installer
+        run: ./windows-island/Build.ps1
+
+      - name: Render production UI without opening a desktop window
+        run: |
+          [xml]$project = Get-Content -LiteralPath windows-island/CcfDeadlineIsland.csproj -Raw
+          $version = [string]$project.Project.PropertyGroup.Version
+          $app = (Resolve-Path -LiteralPath "artifacts/windows-island-$version/CCF Deadline Island.exe").Path
+          $output = Join-Path $PWD 'artifacts/ui-checks'
+          $process = Start-Process -FilePath $app -ArgumentList @('--render-preview', "`"$output`"") -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+          if (-not (Test-Path -LiteralPath "$output/checks.txt")) { throw 'Production UI checks did not produce a result.' }
+          Get-Content -LiteralPath "$output/checks.txt"
+
+      - name: Upload Windows installer and UI evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: CCF-Deadline-Island-Windows-x64
+          path: |
+            artifacts/CCF-Deadline-Island_*_x64-setup.exe
+            artifacts/ui-checks/*.png
+            artifacts/ui-checks/geometry.json
+            artifacts/ui-checks/checks.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

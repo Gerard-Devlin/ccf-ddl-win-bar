@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>CCF Deadline Island</AssemblyName>
+    <RootNamespace>CcfDeadlineIsland</RootNamespace>
+    <Version>0.1.0</Version>
+    <Description>CCF conference deadlines using DynamicWin's original UI controls</Description>
+    <PackageLicenseExpression>CC-BY-SA-4.0</PackageLicenseExpression>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- WPF owns DPI awareness through app.manifest; WinForms is only used for NotifyIcon/Screen. -->
+    <NoWarn>$(NoWarn);WFAC010;CS8618;CS8625;CS8600;CS8601;CS8602;CS8603;CS8604;CS8605;CS0649;CS0169;CS0414</NoWarn>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile Condition="'$(SelfContained)' == 'true'">true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <Resource Include="Assets\icon.ico" />
+    <Compile Remove="Tests\**\*.cs" />
+    <None Update="LICENSE;NOTICE.md;licenses\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Update="Upstream\DynamicWin\Resources\**\*;Upstream\DynamicWin\LICENSE;Upstream\DynamicWin\VENDOR-MANIFEST.json;Upstream\DynamicWin\FONT-LICENSE-METADATA.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+</Project>

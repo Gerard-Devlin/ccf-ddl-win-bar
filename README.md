@@ -39,6 +39,18 @@ The application reads the dataset published by [CCF Deadlines](https://github.co
 
 ## Install
 
+### DynamicWin UI edition
+
+The independent [Windows Island project](windows-island) reuses DynamicWin's
+original SkiaSharp controls, Inter fonts, icons, layout, and spring animations,
+with CCF conference names and deadline countdowns replacing the widget content.
+Its UI source is the public `main` branch at `9f24d17`; DynamicWin's current `V2`
+branch hosts releases without source code.
+
+The tray application below remains available separately. See the island's
+[build and usage instructions](windows-island/README.md) for its standalone x64
+installer, preview, keyboard controls, data cache, and source attribution.
+
 ### Installer
 
 1. Download the newest NSIS installer from [GitHub Releases](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/latest).
@@ -150,6 +162,7 @@ The [Windows build workflow](.github/workflows/build.yml) runs the same tests an
 |-- windows-tray/
 |   |-- src-tauri/          Rust backend, tray integration, networking, and packaging
 |   `-- ui/                 HTML, CSS, and JavaScript for the popover interface
+|-- windows-island/         DynamicWin UI edition, conference data, and installer
 |-- LICENSE
 `-- README.md
 ```
@@ -172,4 +185,7 @@ Issues and pull requests are welcome.
 
 ## License
 
-Distributed under the [Apache License 2.0](LICENSE).
+The tray application is distributed under the [Apache License 2.0](LICENSE).
+The DynamicWin-derived island edition has its own
+[CC BY-SA 4.0 license](windows-island/LICENSE) and
+[third-party notices](windows-island/NOTICE.md).

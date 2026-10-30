@@ -1,0 +1,327 @@
+{
+  "source": "https://github.com/FlorianButz/DynamicWin",
+  "branch": "main",
+  "commit": "9f24d176a16333b1cfda21dd3ed48087497194ed",
+  "copied_files": [
+    {
+      "path": "LICENSE",
+      "sha256": "fcc8a87920214067b4f9f81aceec79d4593e70184c25fe81f0e880ab30347856",
+      "bytes": 20558
+    },
+    {
+      "path": "Resources/CascadiaMono.ttf",
+      "sha256": "056f33ba2d9da954750320ec6ecfb7d83cfb5f93ad593722170cd4498f5d4e95",
+      "bytes": 715000
+    },
+    {
+      "path": "Resources/icons/battery/Battery.png",
+      "sha256": "9d3d18bd682e3362e2cce921de31451594bc07313b74002d1023f9c0fca14aad",
+      "bytes": 5865
+    },
+    {
+      "path": "Resources/icons/battery/BatteryCharging.png",
+      "sha256": "aa6aac6272154f16f0702a2a0c8604ab22bdc43c2046e74b637d1e31e1f66fd7",
+      "bytes": 9012
+    },
+    {
+      "path": "Resources/icons/battery/BatteryLevel_10P.png",
+      "sha256": "7c91d1a423a4c6f2e25989c15960d0bc2722b9547aaab28b825b89e5c5f511cd",
+      "bytes": 4313
+    },
+    {
+      "path": "Resources/icons/battery/BatteryLevel_25P.png",
+      "sha256": "646872ff428350ad82fb1439f30761f945eb84de9d8d444f0dbe0d1e5f0755f6",
+      "bytes": 4458
+    },
+    {
+      "path": "Resources/icons/battery/BatteryLevel_50P.png",
+      "sha256": "1bd3a6ea5bc4d75e630aff275f8f40cd3b6043c8e98b1a24f7c54b7f70b7f6de",
+      "bytes": 4479
+    },
+    {
+      "path": "Resources/icons/battery/BatteryLevel_75P.png",
+      "sha256": "0037fb87691b79a05e0471526f329a01a969318a2912c75b7240a72b4a25eb11",
+      "bytes": 4478
+    },
+    {
+      "path": "Resources/icons/battery/BatteryLevel_Full.png",
+      "sha256": "dbfafec4f2dd889f62744dad053953c6ca142486a6c5df8c880ea078d808fba9",
+      "bytes": 4488
+    },
+    {
+      "path": "Resources/icons/battery/NoBattery.png",
+      "sha256": "6910a55aa137ab86e5746960417744c74779751651fefecc96a1fab6b7ad8999",
+      "bytes": 6850
+    },
+    {
+      "path": "Resources/icons/edit.png",
+      "sha256": "e94e8138432ec7e81bf2b0f817b1491bda2f12c034bf30f5c302fc5a52c0fd51",
+      "bytes": 852
+    },
+    {
+      "path": "Resources/icons/home/Add.png",
+      "sha256": "9594bf4ab6fcb6c9fb6e8c65c74b2fba79e45b300b7a7502c3e92fc181eaf2e8",
+      "bytes": 571
+    },
+    {
+      "path": "Resources/icons/home/ArrowDown.png",
+      "sha256": "8d1991a75362a3b8eef319597a3709fdca42189ab69be7607b04fdcfc37bfd8d",
+      "bytes": 733
+    },
+    {
+      "path": "Resources/icons/home/ArrowUp.png",
+      "sha256": "e4e1e7543fcbdb04b604f8ee3fb4f0c52cf876a720c981f51e30ca380e01b567",
+      "bytes": 672
+    },
+    {
+      "path": "Resources/icons/home/Brightness.png",
+      "sha256": "e56051d06bb5e985f01150b117fc5af1c89778a72ad9b481a0d5d3098939edbc",
+      "bytes": 1610
+    },
+    {
+      "path": "Resources/icons/home/Check.png",
+      "sha256": "d06ca3522b4556528ee5b64f7b097e38f076c97ff7980250670379ad43c7ca68",
+      "bytes": 737
+    },
+    {
+      "path": "Resources/icons/home/File.png",
+      "sha256": "2f563f4fcaaa0a7a0f8411f614ba8f37cdfc24e9a99c86f5670c48526f24ca80",
+      "bytes": 962
+    },
+    {
+      "path": "Resources/icons/home/Location.png",
+      "sha256": "5317c3bc9bf9cb447d28e8ab3c51ada4a91b7a982309de8b2fb566c7455a904b",
+      "bytes": 1936
+    },
+    {
+      "path": "Resources/icons/home/PlaceItem.png",
+      "sha256": "e7203a0100a70650f27077ce52b9e096a24bef0131cabf8de184297f437ee345",
+      "bytes": 1076
+    },
+    {
+      "path": "Resources/icons/home/Settings.png",
+      "sha256": "41c455cb3b75d8ccebcafbdc8a9a60d394dc4ef7c2d386bca53ca2d20e8c7bb1",
+      "bytes": 2082
+    },
+    {
+      "path": "Resources/icons/home/Spotify.png",
+      "sha256": "8523959069a1bcc966908106039e78f7f19491c312d4922a012fbe7a19782f64",
+      "bytes": 7898
+    },
+    {
+      "path": "Resources/icons/home/Tray.png",
+      "sha256": "3540c966ba3e346fbdab80cc64bff3c4be73bea34649419954efabca1b41f935",
+      "bytes": 1173
+    },
+    {
+      "path": "Resources/icons/home/VolumeOff.png",
+      "sha256": "b276654fa0b619ed4674500699bef8221df11e2bf6797a50c67a75f1ae627d68",
+      "bytes": 1603
+    },
+    {
+      "path": "Resources/icons/home/VolumeOn.png",
+      "sha256": "3b5e3bf89ac713e9e8ef26c002230eff2c4824c864f39a292bb2955573ae5729",
+      "bytes": 1499
+    },
+    {
+      "path": "Resources/icons/home/Weather.png",
+      "sha256": "6babf5b0781c79f6c9452a8f020fad25f428793d17d5e56207178314910c565f",
+      "bytes": 1548
+    },
+    {
+      "path": "Resources/icons/home/Widgets.png",
+      "sha256": "9b587a25a5d4b2d3945a002fea42ec655c4d54b143c5ee301caa94866d06b65b",
+      "bytes": 974
+    },
+    {
+      "path": "Resources/icons/playback/Next.png",
+      "sha256": "ded2d8e1da50a5862aa05af8b7437a8c83612ff4a233eb776f18dc471cce908e",
+      "bytes": 16669
+    },
+    {
+      "path": "Resources/icons/playback/Play.png",
+      "sha256": "29038ae256d90f0aacd59a3c23834e120741657624eb36f22c39c1183c40e1bd",
+      "bytes": 16061
+    },
+    {
+      "path": "Resources/icons/playback/PlayPause.png",
+      "sha256": "14fc679b7f450c374227515bd7ac7b484a64636b609d21ef51bd8294e69cc588",
+      "bytes": 14778
+    },
+    {
+      "path": "Resources/icons/playback/Previous.png",
+      "sha256": "83a630c493dea35dd5c69e85625b309b7f6233094ac8453b0bcb3637ae7ab2ea",
+      "bytes": 16707
+    },
+    {
+      "path": "Resources/icons/playback/Stop.png",
+      "sha256": "0cb2803120cf88a57e37fc1c0e641e655ee531e731ab9838ab83c6705ef83492",
+      "bytes": 14142
+    },
+    {
+      "path": "Resources/icons/search.png",
+      "sha256": "954032436c0712e81cf673de865d0d8390b0cf0e873274fecf3bdc2d0fc5c928",
+      "bytes": 1415
+    },
+    {
+      "path": "Resources/icons/settings/AddWidget.png",
+      "sha256": "beaa581868acb55f3c12565ef285523030c5cef27d07911a9bbdeba56e06649a",
+      "bytes": 2045
+    },
+    {
+      "path": "Resources/icons/test.jpg",
+      "sha256": "bff13cbb2a99b1b66e5c7be09cde3298a4ddcd1c65563759a752aad7d4cb020d",
+      "bytes": 4566
+    },
+    {
+      "path": "Resources/icons/TrayIcon.ico",
+      "sha256": "3b1ce318849e3038c2d5ca7003444a7864e70cb139991d79c3ce165ee8e3ea43",
+      "bytes": 4286
+    },
+    {
+      "path": "Resources/icons/weather/Cloudy.png",
+      "sha256": "c1eb9693d1fc0443faf73468f0cec4623d7701317542abf981d2625ce8f1e327",
+      "bytes": 1181
+    },
+    {
+      "path": "Resources/icons/weather/Foggy.png",
+      "sha256": "f82d327f03e51b647c83494e6333f131c6a892ce75da29c0967481046f2869a8",
+      "bytes": 1317
+    },
+    {
+      "path": "Resources/icons/weather/Rainy.png",
+      "sha256": "84299f1a0811e85450326c569017ac548a11ad1ed5bdb347f352df4304401fa7",
+      "bytes": 1279
+    },
+    {
+      "path": "Resources/icons/weather/SevereWeatherWarning.png",
+      "sha256": "de4883bfbbea5487de4c3d887420537bdfc18c27dd97039ba718cd16e00e7ec5",
+      "bytes": 879
+    },
+    {
+      "path": "Resources/icons/weather/Snowy.png",
+      "sha256": "0fe81fd9910e8ac79a55e2678132275bf1ce64ab301996de2c89536054d7f837",
+      "bytes": 1277
+    },
+    {
+      "path": "Resources/icons/weather/Sunny.png",
+      "sha256": "7399041c455b0728e7df685a10cabc37baf989d7212ff2d40261a4113d44ff08",
+      "bytes": 1510
+    },
+    {
+      "path": "Resources/icons/weather/Thunderstorm.png",
+      "sha256": "ebe00f680f929c0501765b89cf78654ccb4631e5593d9c135046cd48084236c9",
+      "bytes": 1357
+    },
+    {
+      "path": "Resources/icons/weather/Windy.png",
+      "sha256": "61ae001c6bd17b583bbb729fd357c57c1711102d03a415e50c7a7694ae5059e3",
+      "bytes": 1406
+    },
+    {
+      "path": "Resources/Inter_24pt-ExtraBold.ttf",
+      "sha256": "a39a597b8e9f869916603b935173e0b444298e012b08a5ed6ab9bbc4f4572212",
+      "bytes": 344800
+    },
+    {
+      "path": "Resources/Inter_24pt-Regular.ttf",
+      "sha256": "d2a4911506ea4e124a47ca044e5e79f671ddf8f1a55f1ab9a56c58d088124b63",
+      "bytes": 342732
+    },
+    {
+      "path": "UI/UIElements/Custom/DWProgressBar.cs",
+      "sha256": "4116b2f9463d30ab636c5e615f12396bb1d98ac875f15853ade7040f80e6e977",
+      "bytes": 1989
+    },
+    {
+      "path": "UI/UIElements/Custom/DWSlider.cs",
+      "sha256": "df237abfa72140a74a2f1e2de54bde529669e9d0cd5f1c29f9b12c6252f1b1e5",
+      "bytes": 1178
+    },
+    {
+      "path": "UI/UIElements/DWButton.cs",
+      "sha256": "4c052a95889b510aefda05f03f50eb784d455fa1f5080fa248fadb50c6bc9711",
+      "bytes": 2699
+    },
+    {
+      "path": "UI/UIElements/DWImage.cs",
+      "sha256": "0a7762b3af6e0376bcb0bb7177b127f670893aeaae2b3362b7ff854af6bcc9ea",
+      "bytes": 2272
+    },
+    {
+      "path": "UI/UIElements/DWImageButton.cs",
+      "sha256": "73b5d57ffbc1446937494af28bb5c86fbfc4162eb1d512e4982311cd1c20c198",
+      "bytes": 961
+    },
+    {
+      "path": "UI/UIElements/DWText.cs",
+      "sha256": "61138ee80275c2fbf2940066ec252adf8217095d89a8466fef1bc389594705ea",
+      "bytes": 3989
+    },
+    {
+      "path": "UI/UIElements/DWTextButton.cs",
+      "sha256": "892d3043bca4784827417126849d5d38db1d1ec956d2982b786a6eb6198cbd93",
+      "bytes": 1547
+    },
+    {
+      "path": "UI/UIElements/DWTextImageButton.cs",
+      "sha256": "59811609e0d68d76ffedbff0b4523f4b050435759c9bec038fc628ced8340a7f",
+      "bytes": 2096
+    },
+    {
+      "path": "UI/UIElements/IslandObject.cs",
+      "sha256": "6f9afa8530519d8b78807127077351cae97a228a6bede9f234d6a39c7e371b72",
+      "bytes": 6042
+    },
+    {
+      "path": "UI/UIObject.cs",
+      "sha256": "97a07e8747b8848d44d319c8fef16f940d3b6ebe793ca24109b7dce27dd078c1",
+      "bytes": 19900
+    },
+    {
+      "path": "UI/Widgets/WidgetBase.cs",
+      "sha256": "3d1a6702b90bf30fdf34fd6dfd4279a21a5c97808e9ab72f5ff7b31765dba640",
+      "bytes": 5381
+    },
+    {
+      "path": "Utils/Animator.cs",
+      "sha256": "fcf43dd75029ad13e7692c76608d9040b8312927a890a5b9fdf46d9ad28f136a",
+      "bytes": 1699
+    },
+    {
+      "path": "Utils/Col.cs",
+      "sha256": "960156b398a800495bff53df846e1bfa3170731755a8989c30c70ad14d6780cb",
+      "bytes": 3103
+    },
+    {
+      "path": "Utils/Easings.cs",
+      "sha256": "ba69a9afbc962a34b2785949f1fad27eaaca8ec4fadc39b5ce32ea00c5382a84",
+      "bytes": 1000
+    },
+    {
+      "path": "Utils/Mathf.cs",
+      "sha256": "9a78655a2fc7a577130140db51179bb302489151e3aa289d1a347667f7a08e42",
+      "bytes": 1619
+    },
+    {
+      "path": "Utils/SecondOrder.cs",
+      "sha256": "56074ffa3e1e62adcbb44bc76e4ee9f127c0fc3ff0c85d198bb8b8fb82066b59",
+      "bytes": 1504
+    },
+    {
+      "path": "Utils/Vec2.cs",
+      "sha256": "11d1e90427c6cfdddc35500aafcfd540abc1aa952bef6f272a9e413d71c02288",
+      "bytes": 3780
+    },
+    {
+      "path": "WPFBinders/SKElement.cs",
+      "sha256": "7b1f6675282b9cfe25d62d347d57d8a8932d4de88535e410990250cd9c97d974",
+      "bytes": 4180
+    },
+    {
+      "path": "WPFBinders/SKPaintSurfaceEventArgs.cs",
+      "sha256": "7f5b509e32881084adc73dea2e48769f4ec2e4223135a44c6d14a2bd73cd4400",
+      "bytes": 739
+    }
+  ]
+}
