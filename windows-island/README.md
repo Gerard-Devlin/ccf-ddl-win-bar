@@ -1,7 +1,7 @@
 # CCF Deadline Island — Development
 
 Development guide for the Windows desktop companion to CCF conference deadlines.
-See the [project README](../README.md) for downloads and the [demo](../docs/demo.gif).
+See the [project README](../README.md) for downloads and the [demo](../docs/demo.png).
 
 ## Requirements
 
