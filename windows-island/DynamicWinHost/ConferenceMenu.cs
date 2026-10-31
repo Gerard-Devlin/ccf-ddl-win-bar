@@ -109,6 +109,7 @@ public sealed class ConferenceMenu : IIslandMenu
         {
             if (HasFilters()) ResetFilters(); else _model.Refresh?.Invoke();
         });
+        _emptyAction.LeadingGlyph = ButtonGlyph.Reset;
 
         AddLabel("filters", "CCF rank", 16, 50, 288, 18, 11, Theme.TextSecond);
         for (int index = 0; index < Preferences.CcfValues.Length; index++)
@@ -151,7 +152,7 @@ public sealed class ConferenceMenu : IIslandMenu
         _submission = new ToggleButton(island, "Submission deadlines only", 16, 280, 288, 36, () =>
         { _model.Preferences.SubmissionOnly = !_model.Preferences.SubmissionOnly; SaveAndRefresh(); }) { FullRow = true, FontSize = 12 };
         Register("filters.submission", _submission, "filters");
-        AddPageButton("filters", "filters.reset", "Reset filters", 16, 336, 114, 28, ResetFilters);
+        AddPageButton("filters", "filters.reset", "Reset filters", 16, 336, 114, 28, ResetFilters).LeadingGlyph = ButtonGlyph.Reset;
         AddPageButton("filters", "filters.done", "Done", 236, 336, 68, 28, () => ShowPage(_returnPage));
 
         AddLabel("display", "Display", 16, 51, 288, 23, 15, Theme.TextMain, bold: true);
@@ -160,8 +161,8 @@ public sealed class ConferenceMenu : IIslandMenu
         Register("display.animations", _animations, "display");
         AddPageButton("display", "display.done", "Done", 236, 136, 68, 28, () => ShowPage(_returnPage));
 
-        AddPageButton("details", "details.back", "Back", 16, 50, 50, 25, () => ShowPage(_detailsReturnPage));
-        _detailTitle = AddLabel("details", "", 76, 50, 228, 25, 14, Theme.TextMain, bold: true);
+        AddPageButton("details", "details.back", "Back", 16, 50, 60, 25, () => ShowPage(_detailsReturnPage)).LeadingGlyph = ButtonGlyph.Back;
+        _detailTitle = AddLabel("details", "", 84, 50, 220, 25, 14, Theme.TextMain, bold: true);
         for (int i = 0; i < 2; i++)
         {
             _detailPanels[i] = new DeadlinePanel(island, 16, 87 + i * 83, 288, 75);
@@ -348,7 +349,7 @@ public sealed class ConferenceMenu : IIslandMenu
     private Label AddLabel(string page, string text, float x, float y, float width, float height, float size, Col color, bool bold = false, bool center = false)
     { var label = new Label(_island, x, y, width, height, size, color) { Text = text, Bold = bold, Center = center }; AddPageObject(page, label); return label; }
 
-    public enum ButtonGlyph { None, Website, Copy, Calendar }
+    public enum ButtonGlyph { None, Website, Copy, Calendar, Back, Reset }
 
     public class MenuButton : DWButton
     {
@@ -404,6 +405,19 @@ public sealed class ConferenceMenu : IIslandMenu
             using var path = new SKPath();
             switch (glyph)
             {
+                case ButtonGlyph.Reset:
+                    path.MoveTo(x + 2, y + 1); path.LineTo(x + 2, y + 5); path.LineTo(x + 6, y + 5);
+                    path.MoveTo(x + 2.2f, y + 5);
+                    path.CubicTo(x + 3.5f, y + 1.6f, x + 8.1f, y + 1.2f, x + 10.5f, y + 3.7f);
+                    path.CubicTo(x + 13.6f, y + 6.8f, x + 11.2f, y + 12, x + 7, y + 12);
+                    path.CubicTo(x + 4.8f, y + 12, x + 3.1f, y + 10.8f, x + 2.2f, y + 9.2f);
+                    canvas.DrawPath(path, paint);
+                    break;
+                case ButtonGlyph.Back:
+                    path.MoveTo(x + 11.5f, y + 7); path.LineTo(x + 2.5f, y + 7);
+                    path.MoveTo(x + 6.5f, y + 3); path.LineTo(x + 2.5f, y + 7); path.LineTo(x + 6.5f, y + 11);
+                    canvas.DrawPath(path, paint);
+                    break;
                 case ButtonGlyph.Website:
                     path.MoveTo(x + 7, y + 2); path.LineTo(x + 12, y + 2); path.LineTo(x + 12, y + 7);
                     path.MoveTo(x + 12, y + 2); path.LineTo(x + 6.5f, y + 7.5f);
