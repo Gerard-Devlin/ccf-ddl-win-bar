@@ -24,8 +24,6 @@ public sealed class RendererMain : SKElement, IDisposable
     {
         get
         {
-            if (Instance._updatingIsland && Instance.IsDockDragging)
-                return Instance._dragExpanded ? new Vec2(ScreenDimensions.X / 2, 20) : new Vec2(-1000, -1000);
             if (Instance._updatingIsland && Instance.ForceExpanded) return new Vec2(ScreenDimensions.X / 2, 20);
             if (Instance._updatingIsland && Instance.ForceCollapsed) return new Vec2(-1000, -1000);
             if (Instance.Input?.PointerPosition is { } point) return new Vec2(point.X, point.Y);
@@ -71,9 +69,6 @@ public sealed class RendererMain : SKElement, IDisposable
     public int RoutedPointerUpCount { get; private set; }
     public Action? ExpansionChanged;
     public event Action? GeometryChanged;
-    public bool IsDockDragging { get; private set; }
-    private bool _dragExpanded;
-    private bool _dragWasPinned, _dragWasDismissed;
     private SKRect _lastGeometry;
     private bool _lastExpanded;
 
@@ -141,30 +136,6 @@ public sealed class RendererMain : SKElement, IDisposable
 
     public void CancelInput() => Input.CancelAll();
 
-    // Keep the drag surface steady while mouse capture takes the pointer away
-    // from the normal hover region. Geometry still uses the upstream spring.
-    public void BeginDockDrag()
-    {
-        if (IsDockDragging) return;
-        _dragWasPinned = ForceExpanded;
-        _dragWasDismissed = ForceCollapsed;
-        // A portrait compact capsule can be taller than a short expanded list.
-        // Width distinguishes the two presentations consistently in every dock.
-        var compact = Menu.IslandSize();
-        var expanded = Menu.IslandSizeBig();
-        _dragExpanded = ForceExpanded || Math.Abs(MainIsland.Size.X - expanded.X) < Math.Abs(MainIsland.Size.X - compact.X);
-        IsDockDragging = true;
-        Input.CancelAll();
-    }
-
-    public void EndDockDrag(bool cancelled)
-    {
-        if (!IsDockDragging) return;
-        IsDockDragging = false;
-        ForceExpanded = cancelled ? _dragWasPinned : _dragExpanded;
-        ForceCollapsed = cancelled ? _dragWasDismissed : !_dragExpanded;
-    }
-
     // The test position is scoped to this routed event; native events always use GetPosition.
     public bool RoutePointerDown(float x, float y)
     {
@@ -210,7 +181,7 @@ public sealed class RendererMain : SKElement, IDisposable
             var native = Mouse.GetPosition(this);
             pointer = new Vec2(native.X, native.Y);
         }
-        if (!IsDockDragging) TryReleaseDismissal(pointer);
+        TryReleaseDismissal(pointer);
         if (_lastExpanded != MainIsland.IsHovering)
         {
             _lastExpanded = MainIsland.IsHovering;
@@ -259,7 +230,6 @@ public sealed class RendererMain : SKElement, IDisposable
         if (Menu is null) return;
         MainIsland.DrawCall(canvas);
         if (MainIsland.hidden) return;
-        DrawSideAttachment(canvas);
         foreach (var element in Menu.UiObjects)
         {
             int saved = canvas.Save();
@@ -277,46 +247,6 @@ public sealed class RendererMain : SKElement, IDisposable
         Input.DrawFocus(canvas);
         canvas.RestoreToCount(focusSaved);
         canvas.Flush();
-    }
-
-    private void DrawSideAttachment(SKCanvas canvas)
-    {
-        if (!TryGetSideAttachment(out var attachedHalf, out float amount)) return;
-        using var paint = new SKPaint
-        {
-            IsAntialias = Settings.AntiAliasing,
-            Color = Theme.IslandBackground.Override(a: amount).Value()
-        };
-        canvas.DrawRect(attachedHalf, paint);
-    }
-
-    public bool ContainsVisibleShell(Vec2 point)
-    {
-        if (MainIsland.hidden) return false;
-        var sample = SKRect.Create(point.X, point.Y, .01f, .01f);
-        return MainIsland.GetRect().Contains(sample)
-            || (TryGetSideAttachment(out var attachedHalf, out _) && attachedHalf.Contains(sample));
-    }
-
-    private bool TryGetSideAttachment(out SKRect attachedHalf, out float amount)
-    {
-        attachedHalf = SKRect.Empty;
-        amount = 0;
-        if (MainIsland.hidden || Model.DockSide is not ("left" or "right")) return false;
-        var compact = Menu.IslandSize();
-        var expanded = Menu.IslandSizeBig();
-        float widthRange = expanded.X - compact.X;
-        if (widthRange <= 0) return false;
-        // Complete the edge-facing half of the rounded compact shell. As the
-        // island widens, fade this host-only fill back to the upstream round rect.
-        amount = Math.Clamp((expanded.X - MainIsland.Size.X) / widthRange, 0, 1);
-        if (amount <= 1f / 255) return false;
-        if (amount >= .995f) amount = 1;
-        var bounds = MainIsland.GetRect().Rect;
-        attachedHalf = Model.DockSide == "left"
-            ? new SKRect(bounds.Left, bounds.Top, bounds.MidX, bounds.Bottom)
-            : new SKRect(bounds.MidX, bounds.Top, bounds.Right, bounds.Bottom);
-        return true;
     }
 
     // Offscreen verification uses these same production objects, not a second UI implementation.

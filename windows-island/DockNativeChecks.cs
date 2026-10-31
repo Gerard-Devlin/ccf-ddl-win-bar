@@ -1,34 +1,29 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using CcfDeadlineIsland.Services;
-using CcfDeadlineIsland.Services.Placement;
 
 namespace CcfDeadlineIsland;
 
-// Integrates the dock controller with a real, owned HWND without ever showing it.
+// Verifies fixed primary-screen placement using an owned, hidden HWND.
 internal static class DockNativeChecks
 {
-    [DllImport("user32.dll")]
-    private static extern bool IsWindowVisible(IntPtr window);
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")]
-    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
 
     public static int Run()
     {
-        int checks = 0, persisted = 0;
+        int checks = 0;
         void Check(bool success, string message)
         {
-            if (!success) throw new InvalidOperationException("Native dock check: " + message);
+            if (!success) throw new InvalidOperationException("Native primary placement check: " + message);
             checks++;
         }
-        static int Pixels(double value) => checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
-        static double Scale(PlacementDiagnostics state) => state.Dpi / 96.0;
         var previousDpiContext = SetThreadDpiAwarenessContext(new IntPtr(-4));
-        var preferences = new Preferences();
-        var shape = new Rect(250, 7.5, 200, 35);
         var window = new Window
         {
             Width = 700, Height = 500, Left = 200, Top = 200,
@@ -37,89 +32,50 @@ internal static class DockNativeChecks
             AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent,
             ShowInTaskbar = false, ShowActivated = false
         };
-        DockController? dock = null;
+        IDisposable? placement = null;
         try
         {
             var handle = new WindowInteropHelper(window).EnsureHandle();
-            Check(WindowPlacement.GetPrimaryDiagnostics(window).ClientScreen.Width > 0, "hidden host has native geometry for controller refresh");
-            Check(!IsWindowVisible(handle), "owned dock HWND starts hidden");
+            Check(WindowPlacement.GetPrimaryDiagnostics(window).ClientScreen.Width > 0,
+                "owned hidden HWND has native client geometry");
+            Check(!IsWindowVisible(handle), "owned test window starts hidden");
             var foreground = GetForegroundWindow();
-            dock = new DockController(window, preferences, () => shape, () => persisted++);
-            dock.Refresh();
+            placement = WindowPlacement.AttachPrimary(window);
+            Pump();
             var initial = WindowPlacement.GetPrimaryDiagnostics(window);
-            double initialCenter = initial.ClientScreen.Left + (shape.Left + shape.Width / 2) * Scale(initial);
-            Check(Math.Abs(initialCenter - initial.PrimaryCenterX) <= 1,
-                "default compact island is centered on the physical primary display");
+            Check(initial.CenterDeviationPixels <= 1 && initial.TopDeviationPixels == 0,
+                "attachment places the client at the primary top center");
 
-            double leftCenterY = initial.WorkArea.Top + initial.WorkArea.Height * .35;
-            shape = new Rect(332.5, 7.5, 35, 200);
-            dock.Preview(new Point(initial.WorkArea.Left, leftCenterY), leftCenterY);
-            var left = WindowPlacement.GetPrimaryDiagnostics(window);
-            Check(dock.IsPreviewing && dock.Side == "left" && preferences.DockSide == "top" && persisted == 0,
-                "left preview changes the live dock without storing preferences");
-            Check(Math.Abs(left.ClientScreen.Left + Pixels(shape.Left * Scale(left)) - left.WorkArea.Left) <= 1,
-                "rotated strip visible left edge is flush with the physical work area");
-            double compactLeftRight = left.ClientScreen.Left + Pixels(shape.Right * Scale(left));
+            window.Width = 612;
+            Pump();
+            var resized = WindowPlacement.GetPrimaryDiagnostics(window);
+            Check(resized.ClientScreen.Width != initial.ClientScreen.Width
+                    && resized.CenterDeviationPixels <= 1 && resized.TopDeviationPixels == 0,
+                "a host-width change keeps primary top-center placement");
 
-            shape = new Rect(190, 7.5, 320, 432);
-            dock.Refresh();
-            var expandedLeft = WindowPlacement.GetPrimaryDiagnostics(window);
-            Check(Math.Abs(expandedLeft.ClientScreen.Left + Pixels(shape.Left * Scale(expandedLeft)) - expandedLeft.WorkArea.Left) <= 1,
-                "expanding the island preserves the flush left edge");
-            Check(expandedLeft.ClientScreen.Left + Pixels(shape.Right * Scale(expandedLeft)) > compactLeftRight,
-                "left rotated strip expands inward toward the right");
-            shape = new Rect(250, 7.5, 200, 35);
-            dock.Cancel();
-            var cancelled = WindowPlacement.GetPrimaryDiagnostics(window);
-            double cancelledCenter = cancelled.ClientScreen.Left + (shape.Left + shape.Width / 2) * Scale(cancelled);
-            Check(!dock.IsPreviewing && dock.Side == "top" && preferences.DockSide == "top" && persisted == 0,
-                "cancelling the preview restores the stored dock without saving");
-            Check(Math.Abs(cancelledCenter - cancelled.PrimaryCenterX) <= 1,
-                "cancelled rotated-strip dock returns to the horizontal primary-center capsule");
-
-            double rightCenterY = cancelled.WorkArea.Top + cancelled.WorkArea.Height * .65;
-            var rightPointer = new Point(cancelled.WorkArea.Right, rightCenterY);
-            shape = new Rect(332.5, 7.5, 35, 200);
-            dock.Commit(rightPointer, rightCenterY);
-            var right = WindowPlacement.GetPrimaryDiagnostics(window);
-            Check(!dock.IsPreviewing && preferences.DockSide == "right" && Math.Abs(preferences.DockPosition - .65) < .000001 && persisted == 1,
-                "committing the right dock stores its position and persists once");
-            Check(Math.Abs(right.ClientScreen.Left + Pixels(shape.Right * Scale(right)) - right.WorkArea.Right) <= 1,
-                "rotated strip visible right edge is flush with the physical work area");
-            double compactRightLeft = right.ClientScreen.Left + Pixels(shape.Left * Scale(right));
-
-            // A one-row panel is shorter than the rotated strip, but it must
-            // still widen inward rather than changing the anchored screen edge.
-            shape = new Rect(190, 7.5, 320, 114);
-            dock.Refresh();
-            var shortRight = WindowPlacement.GetPrimaryDiagnostics(window);
-            Check(Math.Abs(shortRight.ClientScreen.Left + Pixels(shape.Right * Scale(shortRight)) - shortRight.WorkArea.Right) <= 1,
-                "short expanded panel stays flush with the physical right edge");
-            Check(shortRight.ClientScreen.Left + Pixels(shape.Left * Scale(shortRight)) < compactRightLeft,
-                "right rotated strip expands inward toward the left even when the panel is shorter");
-
-            shape = new Rect(332.5, 7.5, 35, 200);
-            dock.Refresh();
-            var compactRight = WindowPlacement.GetPrimaryDiagnostics(window);
-            Check(Math.Abs(compactRight.ClientScreen.Left + Pixels(shape.Right * Scale(compactRight)) - compactRight.WorkArea.Right) <= 1,
-                "contracting the island preserves the flush right edge");
-            dock.Commit(rightPointer, rightCenterY);
-            Check(persisted == 1, "recommitting the unchanged dock does not save again");
-
-            dock.Preview(new Point(compactRight.WorkArea.Left, leftCenterY), leftCenterY);
-            dock.Cancel();
-            var restoredRight = WindowPlacement.GetPrimaryDiagnostics(window);
-            Check(preferences.DockSide == "right" && persisted == 1 && dock.Side == "right"
-                    && Math.Abs(restoredRight.ClientScreen.Left + Pixels(shape.Right * Scale(restoredRight)) - restoredRight.WorkArea.Right) <= 1,
-                "cancelling a later drag restores the committed right dock");
-            Check(!IsWindowVisible(handle), "native docking never shows the test window");
-            Check(GetForegroundWindow() == foreground, "native docking does not steal foreground focus");
+            const uint noSize = 0x0001, noZOrder = 0x0004, noActivate = 0x0010, noOwnerZOrder = 0x0200;
+            Check(SetWindowPos(handle, IntPtr.Zero, resized.Monitor.Left + 100,
+                    resized.WorkArea.Top + 80, 0, 0, noSize | noZOrder | noActivate | noOwnerZOrder),
+                "owned HWND can be displaced without activation");
+            Pump();
+            var restored = WindowPlacement.GetPrimaryDiagnostics(window);
+            Check(restored.CenterDeviationPixels <= 1 && restored.TopDeviationPixels == 0,
+                "native position changes are corrected back to primary top center");
+            Check(!IsWindowVisible(handle), "placement checks never show the test window");
+            Check(GetForegroundWindow() == foreground, "placement maintenance does not steal foreground focus");
             return checks;
         }
         finally
         {
-            dock?.Dispose(); window.Close();
+            placement?.Dispose(); window.Close();
             if (previousDpiContext != IntPtr.Zero) SetThreadDpiAwarenessContext(previousDpiContext);
         }
+    }
+
+    private static void Pump()
+    {
+        var frame = new DispatcherFrame();
+        Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
     }
 }

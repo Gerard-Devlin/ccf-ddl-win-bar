@@ -31,7 +31,6 @@ public sealed class ConferenceModel
     public IReadOnlyList<DeadlineRow> Rows { get; set; } = Array.Empty<DeadlineRow>();
     public int SelectedIndex { get; set; }
     public string SelectedConferenceId { get; set; } = "";
-    public string DockSide { get; set; } = "top";
     public Preferences Preferences { get; set; } = new();
     public string Status { get; set; } = "Loading...";
     public bool Loading { get; set; }
@@ -48,7 +47,6 @@ public sealed class ConferenceMenu : IIslandMenu
     private readonly UIObject _compactContainer;
     private readonly DWText _compactTitle;
     private readonly DWText _compactCountdown;
-    private readonly PortraitCompact _portraitCompact;
     private readonly Dictionary<string, List<UIObject>> _pages = new();
     private readonly List<UIObject> _navigation = new();
     private readonly Dictionary<string, MenuButton> _buttons = new();
@@ -78,15 +76,6 @@ public sealed class ConferenceMenu : IIslandMenu
     public Dictionary<string, UIObject> Controls { get; } = new();
     public string Page { get; private set; } = "widgets";
     public Action<string>? PageChanged { get; set; }
-    public bool IsSideDock => _model.DockSide is "left" or "right";
-    public string PortraitTitle => _portraitCompact.RenderedTitle;
-    public string PortraitPrimary => _portraitCompact.Primary;
-    public string PortraitSecondary => _portraitCompact.Secondary;
-    public SKRect PortraitContentBounds => SideContentBounds;
-    public SKRect SideContentBounds => SKRect.Create(_portraitCompact.Position.X, _portraitCompact.Position.Y,
-        _portraitCompact.Size.X, _portraitCompact.Size.Y);
-    public float SideRotationDegrees => _portraitCompact.RotationDegrees;
-    public Col PortraitCountdownColor => _portraitCompact.CountdownColor;
     public bool CopyFeedbackActive => Page == "details" && _copyFeedbackId.Length > 0
         && Selected?.Id == _copyFeedbackId && Stopwatch.GetElapsedTime(_copyFeedbackStarted).TotalSeconds < 1.5;
     public DeadlineRow? Selected => Page == "details" && _selectedId.Length > 0
@@ -104,8 +93,7 @@ public sealed class ConferenceMenu : IIslandMenu
             { Anchor = new Vec2(0, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextMain };
         _compactCountdown = new DWText(_compactContainer, "--", Vec2.zero, UIAlignment.MiddleRight)
             { Anchor = new Vec2(1, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextSecond };
-        _portraitCompact = new PortraitCompact(island);
-        UiObjects.Add(_compactTitle); UiObjects.Add(_compactCountdown); UiObjects.Add(_portraitCompact);
+        UiObjects.Add(_compactTitle); UiObjects.Add(_compactCountdown);
 
         Nav("nav.upcoming", "Upcoming", 14, 84, () => ShowPage("widgets"));
         Nav("nav.all", "All", 102, 40, () => ShowPage("list"));
@@ -196,11 +184,7 @@ public sealed class ConferenceMenu : IIslandMenu
         foreach (var item in UiObjects) item.SilentSetActive(false);
     }
 
-    public Vec2 IslandSize()
-    {
-        var horizontal = HorizontalCompactSize();
-        return IsSideDock ? new Vec2(horizontal.Y, horizontal.X) : horizontal;
-    }
+    public Vec2 IslandSize() => HorizontalCompactSize();
 
     private Vec2 HorizontalCompactSize()
     {
@@ -262,14 +246,7 @@ public sealed class ConferenceMenu : IIslandMenu
         _compactCountdown.SilentSetText(next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow));
         _compactCountdown.Color = next is null ? Theme.TextSecond : CountdownColor(next.Deadline.Utc - DateTimeOffset.UtcNow,
             Theme.TextSecond, _model.Preferences.IsFollowed(next.Id));
-        _compactTitle.SetActive(!expanded && !IsSideDock); _compactCountdown.SetActive(!expanded && !IsSideDock);
-        _portraitCompact.Size = new Vec2(28, HorizontalCompactSize().X - 35);
-        _portraitCompact.RotationDegrees = _model.DockSide == "left" ? -90 : 90;
-        _portraitCompact.Title = next?.Conference.Title ?? "CCF";
-        _portraitCompact.Primary = next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow);
-        _portraitCompact.CountdownColor = next is null ? Theme.TextSecond : CountdownColor(next.Deadline.Utc - DateTimeOffset.UtcNow,
-            Theme.TextSecond, _model.Preferences.IsFollowed(next.Id));
-        _portraitCompact.SetActive(!expanded && IsSideDock);
+        _compactTitle.SetActive(!expanded); _compactCountdown.SetActive(!expanded);
         foreach (var group in _pages)
             foreach (var item in group.Value) item.SetActive(expanded && group.Key == Page);
         foreach (var item in _navigation) item.SetActive(expanded);
@@ -402,8 +379,6 @@ public sealed class ConferenceMenu : IIslandMenu
         long seconds = (long)Math.Ceiling(remaining.TotalSeconds);
         return $"{seconds / 60}m {seconds % 60}s";
     }
-    public static (string Primary, string Secondary) PortraitCountdown(TimeSpan remaining)
-        => (Remaining(remaining), "");
 
     private void Nav(string id, string text, float x, float width, Action action)
     { var button = Button(id, text, x, 14, width, 26, action); button.FontSize = 11; _navigation.Add(button); }
@@ -661,36 +636,6 @@ public sealed class ConferenceMenu : IIslandMenu
             string metadata = kind + " · " + row.Deadline.Utc.ToLocalTime().ToString("MMM dd, HH:mm", CultureInfo.InvariantCulture);
             DrawText(canvas, metadata, x + 11, y + 36, 10.5f, GetColor(Theme.TextSecond), maxWidth: 176);
             DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + 276, y + 24, 14, GetColor(CountdownColor(row.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextMain, IsFollowed)), right: true, middle: true, maxWidth: 83);
-        }
-    }
-    private sealed class PortraitCompact : UIObject
-    {
-        public string Title { get; set; } = "CCF";
-        public string Primary { get; set; } = "--";
-        public string Secondary => "";
-        public float RotationDegrees { get; set; } = 90;
-        public Col CountdownColor { get; set; } = Theme.TextSecond;
-        private float TitleWidth(SKPaint paint) => Math.Max(0, Size.Y - paint.MeasureText(Primary) - 20);
-        public string RenderedTitle
-        {
-            get
-            {
-                using var paint = new SKPaint { Typeface = Res.InterRegular, TextSize = 14 };
-                return Fit(Title, paint, TitleWidth(paint));
-            }
-        }
-        public PortraitCompact(IslandObject island) : base(island, Vec2.zero, new Vec2(28, 165), UIAlignment.Center)
-        { Anchor = new Vec2(.5f, .5f); Color = Col.Transparent; }
-        public override void Draw(SKCanvas canvas)
-        {
-            using var paint = new SKPaint { Typeface = Res.InterRegular, TextSize = 14 };
-            // Rotate a native-size line rather than scaling its text with the shell morph.
-            canvas.Save();
-            canvas.Translate(Position.X + Size.X / 2, Position.Y + Size.Y / 2);
-            canvas.RotateDegrees(RotationDegrees);
-            DrawText(canvas, Title, -Size.Y / 2, 0, 14, GetColor(Theme.TextMain), middle: true, maxWidth: TitleWidth(paint));
-            DrawText(canvas, Primary, Size.Y / 2, 0, 14, GetColor(CountdownColor), right: true, middle: true);
-            canvas.Restore();
         }
     }
     private sealed class Label : UIObject

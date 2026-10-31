@@ -71,10 +71,19 @@ try
     Check(!blocked.SaveCache(snapshot), "Storage failure is nonfatal");
     preferences.Save(Path.Combine(temp, "prefs.json"));
     Check(Preferences.Load(Path.Combine(temp, "prefs.json")).WithinDays == preferences.WithinDays, "Preferences round trip");
-    preferences.DockSide = "right"; preferences.DockPosition = .73;
-    preferences.Save(Path.Combine(temp, "dock-prefs.json"));
-    var dockPreferences = Preferences.Load(Path.Combine(temp, "dock-prefs.json"));
-    Check(dockPreferences.DockSide == "right" && dockPreferences.DockPosition == .73, "Dock edge and vertical position survive restart");
+    foreach (string obsoleteSide in new[] { "left", "right" })
+    {
+        string legacyPath = Path.Combine(temp, "legacy-dock-prefs.json");
+        File.WriteAllText(legacyPath, $$"""{"DockSide":"{{obsoleteSide}}","DockPosition":0.73,"WithinDays":90,"Ccf":["A"],"SubmissionOnly":true,"FollowedConferenceIds":["test30"]}""");
+        var legacyPreferences = Preferences.Load(legacyPath);
+        Check(legacyPreferences.WithinDays == 90 && legacyPreferences.Ccf.SequenceEqual(new[] { "A" })
+            && legacyPreferences.SubmissionOnly && legacyPreferences.IsFollowed("test30"),
+            "Obsolete " + obsoleteSide + " dock values do not disturb normal preferences");
+        legacyPreferences.Save(legacyPath);
+        string migrated = File.ReadAllText(legacyPath);
+        Check(!migrated.Contains("DockSide", StringComparison.Ordinal) && !migrated.Contains("DockPosition", StringComparison.Ordinal),
+            "Saving preferences drops obsolete " + obsoleteSide + " dock values");
+    }
     preferences.ToggleFollow("test30");
     preferences.Save(Path.Combine(temp, "follow-prefs.json"));
     var followedPreferences = Preferences.Load(Path.Combine(temp, "follow-prefs.json"));
@@ -108,7 +117,6 @@ Check(cycleUids.Count == 2 && cycleUids.Distinct(StringComparer.Ordinal).Count()
 var punctuationUrl = editions[0] with { Website = "https://example.com/track;round?areas=ai,db" };
 Check(CalendarExport.Create(punctuationUrl, now).Contains("URL:https://example.com/track;round?areas=ai,db\r\n"), "Calendar preserves URI punctuation in URL properties");
 PlacementChecks.Run(Check);
-DockingChecks.Run(Check);
 if (args.Contains("--live", StringComparer.Ordinal))
 {
     using var live = new DeadlineService(Path.Combine(Path.GetTempPath(), "CcfIslandLiveCheck.json"));

@@ -21,7 +21,6 @@ internal static class UiRegressionChecks
         var originalPreferences = model.Preferences;
         var originalSave = model.SavePreferences;
         var originalCopy = model.CopyTime;
-        string originalDock = model.DockSide;
         var originalIslandMode = DynamicWin.Main.Settings.IslandMode;
         var originalStartupAction = model.SetLaunchAtStartup;
         bool originalStartup = model.LaunchAtStartup;
@@ -44,13 +43,6 @@ internal static class UiRegressionChecks
             return new Vec2(rect.MidX, rect.MidY);
         }
         void Page(string page) { menu.ShowPage(page); renderer.Settle(true); }
-        void Dock(string side)
-        {
-            model.DockSide = side;
-            DynamicWin.Main.Settings.IslandMode = side == "top"
-                ? DynamicWin.UI.UIElements.IslandObject.IslandMode.Notch
-                : DynamicWin.UI.UIElements.IslandObject.IslandMode.Island;
-        }
         bool ClickAt(Vec2 point)
         {
             bool captured = renderer.RoutePointerDown(point.X, point.Y);
@@ -279,66 +271,15 @@ internal static class UiRegressionChecks
             Check(!renderer.RoutePointerDown(350, 16) && !renderer.RoutePointerUp(350, 16) && menu.Page == "widgets",
                 "opening click on the compact shell cannot activate moving navigation controls");
 
-            model.Rows = originalRows; model.SelectedConferenceId = originalRows[1].Id; model.SelectedIndex = 1;
-            menu.ShowPage("widgets");
-            foreach (string side in new[] { "left", "right" })
-            {
-                Dock(side); renderer.Settle(false);
-                var shell = renderer.MainIsland.GetRect().Rect;
-                var content = menu.SideContentBounds;
-                Check(menu.IslandSize().X == 35 && menu.IslandSize().Y >= 200
-                    && Math.Abs(shell.Width - 35) < .5f && Math.Abs(shell.Height - menu.IslandSize().Y) < .5f,
-                    side + " compact dock swaps the horizontal capsule axes into a slim strip");
-                Check(content.Width == 28 && Math.Abs(content.Height - (menu.IslandSize().Y - 35)) < .01f
-                    && shell.Contains(content), side + " rotated content fits inside the shell");
-                Check(menu.PortraitTitle == originalRows[1].Conference.Title && menu.PortraitPrimary.Contains(' ')
-                    && menu.PortraitSecondary.Length == 0 && menu.SideRotationDegrees == (side == "left" ? -90 : 90),
-                    side + " compact title and countdown share one rotated line");
-                float attachedX = side == "left" ? shell.Left + 1 : shell.Right - 1;
-                float roundedX = side == "left" ? shell.Right - 1 : shell.Left + 1;
-                Check(renderer.ContainsVisibleShell(new Vec2(attachedX, shell.Top + 1))
-                    && !renderer.ContainsVisibleShell(new Vec2(roundedX, shell.Top + 1))
-                    && !renderer.ContainsVisibleShell(new Vec2(shell.Right + 1, shell.Top + 1)),
-                    side + " flat edge corners can drag while transparent corners and outside points do not");
-                model.Preferences.FollowedConferenceIds.Add(originalRows[1].Id); menu.Update();
-                Check(menu.PortraitCountdownColor.Value() == ConferenceMenu.FollowColor.Value(), side + " portrait keeps followed green");
-                model.Preferences.FollowedConferenceIds.Clear();
-
-                model.Rows = new[] { originalRows[1] }; menu.Update(); renderer.Settle(false);
-                renderer.BeginDockDrag(); renderer.Settle(false, 30);
-                Check(Math.Abs(renderer.MainIsland.Size.X - 35) < .5f && !renderer.MainIsland.IsHovering,
-                    side + " compact drag stays compact even when expanded list would be shorter");
-                renderer.EndDockDrag(cancelled: false); renderer.Settle(true);
-                Check(renderer.ContentReady && menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 114,
-                    side + " expands to a normal upright one-row panel");
-                var expandedShell = renderer.MainIsland.GetRect().Rect;
-                Check(!renderer.ContainsVisibleShell(new Vec2(expandedShell.Left + 1, expandedShell.Top + 1))
-                    && !renderer.ContainsVisibleShell(new Vec2(expandedShell.Right - 1, expandedShell.Top + 1)),
-                    side + " expanded panel restores both rounded corners for dragging");
-                Click("nav.settings");
-                Check(!renderer.ContentReady, "height transition cannot accept controls before expanded layout is ready");
-                renderer.Settle(true); Check(renderer.ContentReady, "expanded settings becomes ready after both axes settle");
-                menu.ShowPage("widgets"); renderer.Settle(false);
-                shell = renderer.MainIsland.GetRect().Rect;
-                Check(!renderer.TryReleaseDismissal(new Vec2(shell.MidX, shell.MidY)), "portrait Esc latch holds while pointer remains inside");
-                Check(renderer.TryReleaseDismissal(new Vec2(shell.Right + 100, shell.MidY)), "portrait hover resumes only after pointer leaves");
-                model.Rows = originalRows;
-            }
-            var portraitLong = originalRows[0].Conference with { Title = "International Conference on a Very Long Name" };
-            model.Rows = new[] { new DeadlineRow(portraitLong, originalRows[0].Deadline, now) };
-            model.SelectedConferenceId = portraitLong.Id; Dock("left"); renderer.Settle(false);
-            Check(menu.PortraitTitle.EndsWith("…", StringComparison.Ordinal), "portrait long names use ellipsis instead of clipping");
-            model.Rows = Array.Empty<DeadlineRow>(); menu.Update(); renderer.Settle(false);
-            Check(menu.PortraitTitle == "CCF" && menu.PortraitPrimary == "--", "empty portrait keeps a readable placeholder");
-            Dock("top"); model.Rows = originalRows; renderer.Settle(false);
-            Check(menu.IslandSize().X >= 200 && menu.IslandSize().Y == 35, "returning to top restores horizontal compact geometry");
+            model.Rows = originalRows; renderer.Settle(false);
+            Check(menu.IslandSize().X >= 200 && menu.IslandSize().Y == 35, "compact shell remains horizontal at the top");
             return checks;
         }
         finally
         {
             renderer.Input.CancelAll();
             model.Rows = originalRows; model.Preferences = originalPreferences; model.SavePreferences = originalSave;
-            model.CopyTime = originalCopy; model.DockSide = originalDock; DynamicWin.Main.Settings.IslandMode = originalIslandMode;
+            model.CopyTime = originalCopy; DynamicWin.Main.Settings.IslandMode = originalIslandMode;
             model.LaunchAtStartup = originalStartup; model.SetLaunchAtStartup = originalStartupAction;
             model.SelectedIndex = originalSelection;
             model.SelectedConferenceId = originalSelectedId;

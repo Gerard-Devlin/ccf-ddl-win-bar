@@ -4,7 +4,6 @@
  Title="CCF Deadline Island" Width="700" Height="500" WindowStyle="None"
  AllowsTransparency="True" Background="Transparent" Topmost="True" ShowInTaskbar="False"
  ShowActivated="False" ResizeMode="NoResize" WindowStartupLocation="Manual"
- PreviewKeyDown="WindowKeyDown" PreviewMouseDown="WindowMouseDown" PreviewMouseMove="WindowMouseMove"
- PreviewMouseUp="WindowMouseUp" LostMouseCapture="WindowLostMouseCapture" Deactivated="WindowDeactivated">
+ PreviewKeyDown="WindowKeyDown" PreviewMouseDown="WindowMouseDown" Deactivated="WindowDeactivated">
  <Grid x:Name="RenderRoot" Background="Transparent"/>
 </Window>

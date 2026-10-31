@@ -22,19 +22,17 @@ public static class PreviewRenderer
         int checks = UiRegressionChecks.Run(renderer);
         int nativeChecks = NativeWindowChecks.Run();
         int startupChecks = StartupRegistrationChecks.Run();
-        int dockingChecks = DockNativeChecks.Run();
+        int placementChecks = DockNativeChecks.Run();
         var report = new Dictionary<string, object>();
         var rows = renderer.Model.Rows;
         var followedIds = renderer.Model.Preferences.FollowedConferenceIds;
         var copyAction = renderer.Model.CopyTime;
         bool submissionOnly = renderer.Model.Preferences.SubmissionOnly;
         bool launchAtStartup = renderer.Model.LaunchAtStartup;
-        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "settings-switches-on", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details", "left-docked", "right-docked", "left-expanded", "right-expanded", "copy-feedback" })
+        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "settings-switches-on", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details", "copy-feedback" })
         {
-            string side = page.StartsWith("left-", StringComparison.Ordinal) ? "left" : page.StartsWith("right-", StringComparison.Ordinal) ? "right" : "top";
-            renderer.Model.DockSide = side;
-            DynamicWin.Main.Settings.IslandMode = side == "top" ? IslandObject.IslandMode.Notch : IslandObject.IslandMode.Island;
-            bool followed = page.StartsWith("followed", StringComparison.Ordinal) || page.EndsWith("-docked", StringComparison.Ordinal);
+            DynamicWin.Main.Settings.IslandMode = IslandObject.IslandMode.Notch;
+            bool followed = page.StartsWith("followed", StringComparison.Ordinal);
             bool urgent = page.StartsWith("followed", StringComparison.Ordinal) || page.StartsWith("urgent", StringComparison.Ordinal);
             renderer.Model.Preferences.SubmissionOnly = page == "settings-switches-on" || submissionOnly;
             renderer.Model.LaunchAtStartup = page == "settings-switches-on" || launchAtStartup;
@@ -48,8 +46,8 @@ public static class PreviewRenderer
                 renderer.Model.Rows = new[] { new CcfDeadlineIsland.Models.DeadlineRow(conference, deadline, DateTimeOffset.UtcNow) };
             }
             else renderer.Model.Rows = page == "list-two" ? rows.Take(2).ToArray() : rows;
-            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" or "left-docked" or "right-docked" or "left-expanded" or "right-expanded" => "widgets", "settings-switches-on" => "settings", "list-two" => "list", "urgent-details" or "followed-details" or "copy-feedback" => "details", _ => page });
-            renderer.Settle(page is not ("compact" or "urgent-compact" or "followed-compact" or "left-docked" or "right-docked"));
+            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" => "widgets", "settings-switches-on" => "settings", "list-two" => "list", "urgent-details" or "followed-details" or "copy-feedback" => "details", _ => page });
+            renderer.Settle(page is not ("compact" or "urgent-compact" or "followed-compact"));
             if (page == "copy-feedback")
             {
                 renderer.Model.CopyTime = () => true;
@@ -78,32 +76,15 @@ public static class PreviewRenderer
                 using var stagedOutput = File.Create(Path.Combine(directory, "preview.png"));
                 stagedData.SaveTo(stagedOutput);
             }
-            if (side != "top")
-            {
-                const float previewScale = 1.5f;
-                using var sideSurface = SKSurface.Create(new SKImageInfo(1050, 750));
-                sideSurface.Canvas.Scale(previewScale);
-                renderer.DrawScene(sideSurface.Canvas);
-                using var sideImage = sideSurface.Snapshot();
-                using var stage = SKSurface.Create(new SKImageInfo(600, 500));
-                stage.Canvas.Clear(new SKColor(24, 39, 58));
-                float x = side == "left" ? -island.Rect.Left * previewScale : 600 - island.Rect.Right * previewScale;
-                stage.Canvas.DrawImage(sideImage, x, (500 - island.Height * previewScale) / 2 - island.Rect.Top * previewScale);
-                using var staged = stage.Snapshot();
-                using var stagedData = staged.Encode(SKEncodedImageFormat.Png, 100);
-                using var stagedOutput = File.Create(Path.Combine(directory, page + "-preview.png"));
-                stagedData.SaveTo(stagedOutput);
-            }
             report[page] = new { width = island.Width, height = island.Height, source = "DynamicWin main 9f24d17", controls = renderer.Menu.UiObjects.Count };
         }
         renderer.Model.Preferences.FollowedConferenceIds = followedIds;
         renderer.Model.CopyTime = copyAction;
         renderer.Model.Preferences.SubmissionOnly = submissionOnly;
         renderer.Model.LaunchAtStartup = launchAtStartup;
-        renderer.Model.DockSide = "top";
         DynamicWin.Main.Settings.IslandMode = IslandObject.IslandMode.Notch;
         File.WriteAllText(Path.Combine(directory, "geometry.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-        File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost, {dockingChecks} native docking and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");
+        File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost, {placementChecks} native primary placement and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");
         renderer.Dispose();
     }
 }

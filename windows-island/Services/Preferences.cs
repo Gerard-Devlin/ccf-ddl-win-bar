@@ -25,8 +25,6 @@ public sealed class Preferences
     public List<string> FollowedConferenceIds { get; set; } = [];
     public int Monitor { get; set; }
     public int TopOffset { get; set; } = 12;
-    public string DockSide { get; set; } = "top";
-    public double DockPosition { get; set; } = .5;
     public string Search { get; set; } = "";
 
     public bool IsFollowed(string id) => FollowedConferenceIds.Contains(id, StringComparer.OrdinalIgnoreCase);
@@ -57,8 +55,6 @@ public sealed class Preferences
             preferences.WithinDays = new[] { 30, 90, 180, 365 }.Contains(preferences.WithinDays) ? preferences.WithinDays : 365;
             preferences.ItemCount = Math.Clamp(preferences.ItemCount, 3, 50);
             preferences.TopOffset = Math.Clamp(preferences.TopOffset, 0, 100);
-            preferences.DockSide = Placement.DockPlacement.NormalizeSide(preferences.DockSide);
-            preferences.DockPosition = Placement.DockPlacement.NormalizePosition(preferences.DockPosition);
             preferences.Search = "";
             preferences.FollowedConferenceIds = (preferences.FollowedConferenceIds ?? [])
                 .Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

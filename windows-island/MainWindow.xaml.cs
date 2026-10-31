@@ -9,7 +9,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Windows.Threading;
 using CcfDeadlineIsland.DynamicWinHost;
 using CcfDeadlineIsland.Models;
@@ -33,11 +32,7 @@ public partial class MainWindow : Window
     private DeadlineSnapshot? _snapshot;
     private Forms.NotifyIcon? _tray;
     private bool _quitting, _hiddenByUser, _modalOpen, _contextMenuOpen;
-    private readonly DockController _dock;
-    private bool _dockPending, _dockDragging;
-    private System.Windows.Point _dragStartScreen, _lastDragScreen;
-    private double _dragGrabTopPixels;
-    private Cursor? _preDragCursor;
+    private readonly IDisposable _placement;
     private string _error = "", _startupError = "";
     public RendererMain Renderer { get; }
     public void PrepareOffscreenPreview() { _snapshot = DemoSnapshot(); UpdateData(); }
@@ -61,17 +56,12 @@ public partial class MainWindow : Window
         Renderer = new RendererMain(_model);
         _model.TogglePin = () => Renderer.ForceExpanded = !Renderer.ForceExpanded;
         Renderer.ContextMenu = MakeContextMenu();
-        Renderer.ContextMenuOpening += (_, _) => { CancelDockGesture(); _contextMenuOpen = true; };
+        Renderer.ContextMenuOpening += (_, _) => _contextMenuOpen = true;
         Renderer.ContextMenuClosing += (_, _) => _contextMenuOpen = false;
         RenderRoot.Children.Add(Renderer);
-        _dock = new DockController(this, _model.Preferences, () =>
-        {
-            var bounds = Renderer.MainIsland.GetRect().Rect;
-            return new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
-        }, SavePreferences);
-        _dock.Changed += ApplyDockStyle;
+        _placement = WindowPlacement.AttachPrimary(this);
         Renderer.GeometryChanged += RendererGeometryChanged;
-        ApplyDockStyle();
+        DynamicWin.Main.Settings.IslandMode = DynamicWin.UI.UIElements.IslandObject.IslandMode.Notch;
         if (preview) { ShowInTaskbar = true; Title += " — Preview"; }
         Loaded += OnLoaded; Closing += OnClosing; Closed += OnClosed;
         StateChanged += (_, _) => MaintainTopmost();
@@ -97,116 +87,29 @@ public partial class MainWindow : Window
         if (!Renderer.MainIsland.GetInteractionRect().Contains(SKRect.Create((float)point.X, (float)point.Y, 1, 1))) { handled = true; return new IntPtr(-1); }
         return IntPtr.Zero;
     }
-    public void Reveal() { CancelDockGesture(); _hiddenByUser = false; Show(); MaintainTopmost(); Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate(); Renderer.Focus(); }
-    private void Collapse() { CancelDockGesture(); Renderer.Input.CancelAll(); Renderer.ForceExpanded = false; Renderer.ForceCollapsed = true; Renderer.Menu.ShowPage("widgets"); }
+    public void Reveal() { _hiddenByUser = false; Show(); MaintainTopmost(); Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate(); Renderer.Focus(); }
+    private void Collapse() { Renderer.Input.CancelAll(); Renderer.ForceExpanded = false; Renderer.ForceCollapsed = true; Renderer.Menu.ShowPage("widgets"); }
     private void WindowMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton != MouseButton.Left) return;
-        if (TryBeginDockGesture(e)) { e.Handled = true; return; }
         Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate();
-    }
-
-    private bool TryBeginDockGesture(MouseButtonEventArgs e)
-    {
-        // Button presses retain their existing event/capture path. The empty
-        // header/body and the compact surface are the draggable area.
-        if (!IsLoaded || !Renderer.IsLoaded || _modalOpen || _contextMenuOpen || _dockPending) return false;
-        var local = e.GetPosition(Renderer);
-        var point = new DynamicWin.Utils.Vec2(local.X, local.Y);
-        if (!Renderer.ContainsVisibleShell(point)
-            || (Renderer.ContentReady && Renderer.Input.HitTest(point) is not null)) return false;
-        var screen = Renderer.PointToScreen(local);
-        var island = Renderer.MainIsland.GetRect().Rect;
-        var top = Renderer.PointToScreen(new System.Windows.Point(island.Left, island.Top));
-        _dragStartScreen = _lastDragScreen = screen;
-        _dragGrabTopPixels = screen.Y - top.Y;
-        _preDragCursor = Renderer.Cursor;
-        _dockPending = true;
-        if (!Renderer.CaptureMouse()) { _dockPending = false; return false; }
-        return true;
-    }
-
-    private void WindowMouseMove(object sender, MouseEventArgs e)
-    {
-        if (!_dockPending) return;
-        if (e.LeftButton != MouseButtonState.Pressed) { CancelDockGesture(); return; }
-        _lastDragScreen = Renderer.PointToScreen(e.GetPosition(Renderer));
-        if (!_dockDragging)
-        {
-            double dpiScale = VisualTreeHelper.GetDpi(Renderer).DpiScaleX;
-            if (Math.Abs(_lastDragScreen.X - _dragStartScreen.X) < SystemParameters.MinimumHorizontalDragDistance * dpiScale
-                && Math.Abs(_lastDragScreen.Y - _dragStartScreen.Y) < SystemParameters.MinimumVerticalDragDistance * dpiScale)
-            { e.Handled = true; return; }
-            _dockDragging = true;
-            Renderer.Cursor = Cursors.SizeAll;
-            Renderer.BeginDockDrag();
-        }
-        PreviewDockAt(_lastDragScreen);
-        e.Handled = true;
-    }
-
-    private void WindowMouseUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_dockPending || e.ChangedButton != MouseButton.Left) return;
-        bool dragged = _dockDragging;
-        _lastDragScreen = Renderer.PointToScreen(e.GetPosition(Renderer));
-        // Clear first: releasing capture raises LostMouseCapture synchronously.
-        _dockPending = _dockDragging = false;
-        if (dragged)
-        {
-            _dock.Commit(_lastDragScreen, DesiredDragCenterY(_lastDragScreen));
-            Renderer.EndDockDrag(cancelled: false);
-            Renderer.Cursor = _preDragCursor;
-        }
-        if (ReferenceEquals(Mouse.Captured, Renderer)) Renderer.ReleaseMouseCapture();
-        if (!dragged)
-        { Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate(); Renderer.Focus(); }
-        _dock.Refresh();
-        e.Handled = true;
-    }
-
-    private void WindowLostMouseCapture(object sender, MouseEventArgs e)
-    {
-        if (_dockPending && !ReferenceEquals(Mouse.Captured, Renderer)) CancelDockGesture();
-    }
-
-    private double DesiredDragCenterY(System.Windows.Point physicalPointer)
-    {
-        var island = Renderer.MainIsland.GetRect().Rect;
-        var top = Renderer.PointToScreen(new System.Windows.Point(island.Left, island.Top));
-        var bottom = Renderer.PointToScreen(new System.Windows.Point(island.Left, island.Bottom));
-        return physicalPointer.Y - _dragGrabTopPixels + (bottom.Y - top.Y) / 2;
-    }
-
-    private void PreviewDockAt(System.Windows.Point physicalPointer) => _dock.Preview(physicalPointer, DesiredDragCenterY(physicalPointer));
-
-    private void CancelDockGesture()
-    {
-        if (!_dockPending && !_dockDragging) return;
-        _dockPending = _dockDragging = false;
-        _dock.Cancel();
-        Renderer.EndDockDrag(cancelled: true);
-        Renderer.Cursor = _preDragCursor;
-        if (ReferenceEquals(Mouse.Captured, Renderer)) Renderer.ReleaseMouseCapture();
-    }
-
-    private void ApplyDockStyle()
-    {
-        // Previewed and committed docks share the same presentation immediately.
-        _model.DockSide = _dock.Side;
-        DynamicWin.Main.Settings.IslandMode = _dock.Side == "top"
-            ? DynamicWin.UI.UIElements.IslandObject.IslandMode.Notch : DynamicWin.UI.UIElements.IslandObject.IslandMode.Island;
     }
 
     private void RendererGeometryChanged()
     {
         if (!IsLoaded) return;
-        if (_dockDragging) PreviewDockAt(_lastDragScreen);
-        else _dock.Refresh();
+        try
+        {
+            var placement = WindowPlacement.GetPrimaryDiagnostics(this);
+            var position = placement.ExpectedWindowPosition;
+            if (placement.Window.Left != position.X || placement.Window.Top != position.Y)
+                WindowPlacement.ApplyPhysicalPosition(this, position);
+        }
+        catch (Exception error) when (error is Win32Exception or InvalidOperationException)
+        { Debug.WriteLine($"Primary placement temporarily unavailable: {error.Message}"); }
     }
     private void WindowDeactivated(object? sender, EventArgs e)
     {
-        CancelDockGesture();
         Renderer.Input.CancelAll();
         if (!_preview && !_modalOpen && !_contextMenuOpen) Collapse();
         MaintainTopmost();
@@ -214,7 +117,6 @@ public partial class MainWindow : Window
     private void WindowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Escape) { Collapse(); e.Handled = true; return; }
-        if (_dockPending) { e.Handled = true; return; }
         if (Renderer.Input.HandleKey(e.Key, Keyboard.Modifiers)) { e.Handled = true; return; }
         switch (e.Key) { case Key.F5: _ = RefreshAsync(); break; default: return; }
         e.Handled = true;
@@ -305,7 +207,7 @@ public partial class MainWindow : Window
                 areas = _model.Preferences.Categories.ToArray(), selectedConference = Renderer.Menu.Selected?.Id,
                 submissionOnly = _model.Preferences.SubmissionOnly,
                 launchAtStartup = _model.LaunchAtStartup,
-                dock = new { side = _dock.Side, position = _dock.Position, dragging = _dockDragging, previewing = _dock.IsPreviewing },
+                dock = new { side = "top" },
                 controls,
                 recordedAt = DateTimeOffset.UtcNow
             };
@@ -363,7 +265,7 @@ public partial class MainWindow : Window
     }
     private void OnClosing(object? sender, CancelEventArgs e) { if (!_quitting) { e.Cancel = true; _hiddenByUser = true; Collapse(); Hide(); } }
     private void Quit() { _quitting = true; System.Windows.Application.Current.Shutdown(); }
-    private void OnClosed(object? sender, EventArgs e) { CancelDockGesture(); _shutdown.Cancel(); _clock.Stop(); _refresh.Stop(); Renderer.GeometryChanged -= RendererGeometryChanged; _dock.Dispose(); WindowPlacement.UnregisterShortcut(this); Renderer.Dispose(); _tray?.Dispose(); _service.Dispose(); }
+    private void OnClosed(object? sender, EventArgs e) { _shutdown.Cancel(); _clock.Stop(); _refresh.Stop(); Renderer.GeometryChanged -= RendererGeometryChanged; _placement.Dispose(); WindowPlacement.UnregisterShortcut(this); Renderer.Dispose(); _tray?.Dispose(); _service.Dispose(); }
     public static DeadlineSnapshot DemoSnapshot()
     {
         var now = DateTimeOffset.UtcNow; var rows = new List<ConferenceEdition>();
