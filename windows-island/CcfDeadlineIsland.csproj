@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>CCF Deadline Island</AssemblyName>
     <RootNamespace>CcfDeadlineIsland</RootNamespace>
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <Description>CCF conference deadlines using DynamicWin's original UI controls</Description>
     <PackageLicenseExpression>CC-BY-SA-4.0</PackageLicenseExpression>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>

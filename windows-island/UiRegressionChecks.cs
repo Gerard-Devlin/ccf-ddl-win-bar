@@ -20,6 +20,9 @@ internal static class UiRegressionChecks
         var originalRows = model.Rows;
         var originalPreferences = model.Preferences;
         var originalSave = model.SavePreferences;
+        var originalCopy = model.CopyTime;
+        string originalDock = model.DockSide;
+        var originalIslandMode = DynamicWin.Main.Settings.IslandMode;
         var originalStartupAction = model.SetLaunchAtStartup;
         bool originalStartup = model.LaunchAtStartup;
         int originalSelection = model.SelectedIndex;
@@ -28,6 +31,7 @@ internal static class UiRegressionChecks
         string folder = Path.Combine(Path.GetTempPath(), "ccf-island-ui-" + Guid.NewGuid().ToString("N"));
         string settings = Path.Combine(folder, "settings.json");
         int checks = 0, saves = 0;
+        bool copySucceeds = true;
         void Check(bool success, string description)
         {
             if (!success) throw new InvalidOperationException("Production UI: " + description);
@@ -40,6 +44,13 @@ internal static class UiRegressionChecks
             return new Vec2(rect.MidX, rect.MidY);
         }
         void Page(string page) { menu.ShowPage(page); renderer.Settle(true); }
+        void Dock(string side)
+        {
+            model.DockSide = side;
+            DynamicWin.Main.Settings.IslandMode = side == "top"
+                ? DynamicWin.UI.UIElements.IslandObject.IslandMode.Notch
+                : DynamicWin.UI.UIElements.IslandObject.IslandMode.Island;
+        }
         bool ClickAt(Vec2 point)
         {
             bool captured = renderer.RoutePointerDown(point.X, point.Y);
@@ -58,6 +69,7 @@ internal static class UiRegressionChecks
             model.Preferences = new Preferences();
             model.Rows = model.Preferences.Visible(conferences, DateTimeOffset.UtcNow);
             model.SetLaunchAtStartup = enabled => model.LaunchAtStartup = enabled;
+            model.CopyTime = () => copySucceeds;
             model.SavePreferences = () =>
             {
                 saves++;
@@ -70,7 +82,7 @@ internal static class UiRegressionChecks
             Check(!menu.UiObjects.Any(item => item.GetType().Name == "DWImageButton"), "no music transport controls");
             Check(!menu.Controls.ContainsKey("nav.filters") && !menu.Controls.ContainsKey("display.animations"), "settings replaces filter navigation and animation controls");
             Click("nav.settings"); renderer.Settle(true);
-            Check(menu.Page == "settings" && menu.IslandSizeBig().Y == 432, "gear opens unified filters and startup settings");
+            Check(menu.Page == "settings" && menu.IslandSizeBig().Y == 416, "gear opens compact unified filters and startup settings");
             var rank = (ConferenceMenu.ToggleButton)Control("filters.rank.A");
             int beforeDowns = renderer.RoutedPointerDownCount, beforeUps = renderer.RoutedPointerUpCount;
             int beforeSaves = saves;
@@ -103,8 +115,8 @@ internal static class UiRegressionChecks
             Check(renderer.Input.CapturedTarget is null && !renderer.RoutePointerUp(rankPoint.X, rankPoint.Y), "deactivation input cancellation prevents activation");
 
             var submissionRect = Control("filters.submission").GetInputRect().Rect;
-            Check(ClickAt(new Vec2(submissionRect.Left + 210, submissionRect.MidY)), "checkbox text belongs to the click target");
-            Check(model.Preferences.SubmissionOnly && model.Rows.All(row => row.Deadline.Kind == "submission"), "submission checkbox immediately changes deadlines");
+            Check(ClickAt(new Vec2(submissionRect.Left + 90, submissionRect.MidY)), "switch label belongs to the click target");
+            Check(model.Preferences.SubmissionOnly && model.Rows.All(row => row.Deadline.Kind == "submission"), "submission switch immediately changes deadlines");
             Click("filters.range.30");
             Check(model.Preferences.WithinDays == 30, "range choice applies immediately");
             var loaded = Preferences.Load(settings);
@@ -115,9 +127,9 @@ internal static class UiRegressionChecks
             renderer.Input.KeyDown(Key.Space); renderer.Input.KeyDown(Key.Space);
             Check(model.Preferences.SubmissionOnly == beforeSubmission, "key down and auto repeat do not activate before key up");
             renderer.Input.KeyUp(Key.Space);
-            Check(model.Preferences.SubmissionOnly != beforeSubmission, "Space activates focused checkbox once");
+            Check(model.Preferences.SubmissionOnly != beforeSubmission, "Space activates focused switch once");
             renderer.Input.Key(Key.Enter);
-            Check(model.Preferences.SubmissionOnly == beforeSubmission, "Enter activates focused checkbox");
+            Check(model.Preferences.SubmissionOnly == beforeSubmission, "Enter activates focused switch");
             var focused = renderer.Input.FocusedTarget;
             renderer.Input.Key(Key.Tab, ModifierKeys.Shift); renderer.Input.Key(Key.Tab);
             Check(ReferenceEquals(renderer.Input.FocusedTarget, focused), "Shift+Tab and Tab traverse controls in opposite directions");
@@ -133,7 +145,7 @@ internal static class UiRegressionChecks
             Check(model.Preferences.Categories.Count == Preferences.Areas.Count && model.Rows.Count == conferences.Length, "all research areas restores conferences");
             var startupToggle = (ConferenceMenu.ToggleButton)Control("settings.startup");
             var startupBounds = startupToggle.GetInputRect().Rect;
-            Click("settings.startup");
+            Check(ClickAt(new Vec2(startupBounds.Right - 30, startupBounds.MidY)), "startup switch track belongs to the click target");
             Check(model.LaunchAtStartup, "startup control calls the startup registration action");
             startupToggle.Update(1f / 60);
             Check(startupToggle.VisualScale < 1 && startupToggle.GetInputRect().Rect == startupBounds,
@@ -143,7 +155,7 @@ internal static class UiRegressionChecks
             renderer.Settle(true);
             Check(startupToggle.SelectionAmount > .999f && startupToggle.VisualScale > .99f,
                 "settings press and selection animations settle");
-            Click("settings.startup");
+            Check(ClickAt(new Vec2(startupBounds.Left + 80, startupBounds.MidY)), "startup switch label belongs to the click target");
             Check(!model.LaunchAtStartup && DynamicWin.Main.Settings.AllowAnimation, "startup can be disabled while animation remains enabled");
             Check(ConferenceMenu.IsUrgent(TimeSpan.FromHours(24)) && !ConferenceMenu.IsUrgent(TimeSpan.FromHours(24) + TimeSpan.FromMilliseconds(1))
                 && !ConferenceMenu.IsUrgent(TimeSpan.Zero), "urgent countdown threshold is positive and at most twenty-four hours");
@@ -155,6 +167,16 @@ internal static class UiRegressionChecks
             Click("upcoming.row.1"); renderer.Settle(true);
             Check(menu.Page == "details" && menu.Selected?.Id == selectedId, "conference row opens its own deadline details");
             Check(Control("details.website").ImmediateInputEnabled, "explicit website action is available in details");
+            Click("details.copy");
+            var copyButton = (ConferenceMenu.MenuButton)Control("details.copy");
+            Check(menu.CopyFeedbackActive && copyButton.Text == "Copied" && copyButton.LeadingGlyph == ConferenceMenu.ButtonGlyph.Check,
+                "successful copy shows a check and Copied feedback");
+            copySucceeds = false; Click("details.copy");
+            Check(!menu.CopyFeedbackActive && copyButton.Text == "Copy" && copyButton.LeadingGlyph == ConferenceMenu.ButtonGlyph.Copy,
+                "failed copy never shows success feedback");
+            copySucceeds = true; Click("details.copy");
+            System.Threading.Thread.Sleep(1600); menu.Update();
+            Check(!menu.CopyFeedbackActive && copyButton.Text == "Copy", "copy success feedback restores after its short timeout");
             Click("details.follow");
             Check(model.Preferences.IsFollowed(selectedId) && Preferences.Load(settings).IsFollowed(selectedId),
                 "follow action saves the selected conference by ID");
@@ -256,12 +278,55 @@ internal static class UiRegressionChecks
             }
             Check(!renderer.RoutePointerDown(350, 16) && !renderer.RoutePointerUp(350, 16) && menu.Page == "widgets",
                 "opening click on the compact shell cannot activate moving navigation controls");
+
+            model.Rows = originalRows; model.SelectedConferenceId = originalRows[1].Id; model.SelectedIndex = 1;
+            menu.ShowPage("widgets");
+            foreach (string side in new[] { "left", "right" })
+            {
+                Dock(side); renderer.Settle(false);
+                var shell = renderer.MainIsland.GetRect().Rect;
+                var content = menu.PortraitContentBounds;
+                Check(menu.IslandSize().X == 64 && menu.IslandSize().Y == 160
+                    && Math.Abs(shell.Width - 64) < .5f && Math.Abs(shell.Height - 160) < .5f,
+                    side + " compact dock is a 64x160 portrait capsule");
+                Check(content.Width == 48 && shell.Contains(content), side + " portrait content fits inside the shell");
+                Check(menu.PortraitTitle == originalRows[1].Conference.Title && menu.PortraitSecondary.Length > 0,
+                    side + " portrait keeps selected title and two upright countdown lines");
+                model.Preferences.FollowedConferenceIds.Add(originalRows[1].Id); menu.Update();
+                Check(menu.PortraitCountdownColor.Value() == ConferenceMenu.FollowColor.Value(), side + " portrait keeps followed green");
+                model.Preferences.FollowedConferenceIds.Clear();
+
+                model.Rows = new[] { originalRows[1] }; menu.Update(); renderer.Settle(false);
+                renderer.BeginDockDrag(); renderer.Settle(false, 30);
+                Check(Math.Abs(renderer.MainIsland.Size.X - 64) < .5f && !renderer.MainIsland.IsHovering,
+                    side + " compact drag stays compact even when expanded list would be shorter");
+                renderer.EndDockDrag(cancelled: false); renderer.Settle(true);
+                Check(renderer.ContentReady && menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 114,
+                    side + " expands to a normal upright one-row panel");
+                Click("nav.settings");
+                Check(!renderer.ContentReady, "height transition cannot accept controls before expanded layout is ready");
+                renderer.Settle(true); Check(renderer.ContentReady, "expanded settings becomes ready after both axes settle");
+                menu.ShowPage("widgets"); renderer.Settle(false);
+                shell = renderer.MainIsland.GetRect().Rect;
+                Check(!renderer.TryReleaseDismissal(new Vec2(shell.MidX, shell.MidY)), "portrait Esc latch holds while pointer remains inside");
+                Check(renderer.TryReleaseDismissal(new Vec2(shell.Right + 100, shell.MidY)), "portrait hover resumes only after pointer leaves");
+                model.Rows = originalRows;
+            }
+            var portraitLong = originalRows[0].Conference with { Title = "International Conference on a Very Long Name" };
+            model.Rows = new[] { new DeadlineRow(portraitLong, originalRows[0].Deadline, now) };
+            model.SelectedConferenceId = portraitLong.Id; Dock("left"); renderer.Settle(false);
+            Check(menu.PortraitTitle.EndsWith("…", StringComparison.Ordinal), "portrait long names use ellipsis instead of clipping");
+            model.Rows = Array.Empty<DeadlineRow>(); menu.Update(); renderer.Settle(false);
+            Check(menu.PortraitTitle == "CCF" && menu.PortraitPrimary == "--", "empty portrait keeps a readable placeholder");
+            Dock("top"); model.Rows = originalRows; renderer.Settle(false);
+            Check(menu.IslandSize().X >= 200 && menu.IslandSize().Y == 35, "returning to top restores horizontal compact geometry");
             return checks;
         }
         finally
         {
             renderer.Input.CancelAll();
             model.Rows = originalRows; model.Preferences = originalPreferences; model.SavePreferences = originalSave;
+            model.CopyTime = originalCopy; model.DockSide = originalDock; DynamicWin.Main.Settings.IslandMode = originalIslandMode;
             model.LaunchAtStartup = originalStartup; model.SetLaunchAtStartup = originalStartupAction;
             model.SelectedIndex = originalSelection;
             model.SelectedConferenceId = originalSelectedId;

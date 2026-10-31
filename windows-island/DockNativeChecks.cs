@@ -52,36 +52,53 @@ internal static class DockNativeChecks
                 "default compact island is centered on the physical primary display");
 
             double leftCenterY = initial.WorkArea.Top + initial.WorkArea.Height * .35;
+            shape = new Rect(318, 7.5, 64, 160);
             dock.Preview(new Point(initial.WorkArea.Left, leftCenterY), leftCenterY);
             var left = WindowPlacement.GetPrimaryDiagnostics(window);
             Check(dock.IsPreviewing && dock.Side == "left" && preferences.DockSide == "top" && persisted == 0,
                 "left preview changes the live dock without storing preferences");
             Check(Math.Abs(left.ClientScreen.Left + Pixels(shape.Left * Scale(left)) - left.WorkArea.Left) <= 1,
-                "compact visible left edge is flush with the physical work area");
+                "portrait compact visible left edge is flush with the physical work area");
+            double compactLeftRight = left.ClientScreen.Left + Pixels(shape.Right * Scale(left));
 
             shape = new Rect(190, 7.5, 320, 432);
             dock.Refresh();
             var expandedLeft = WindowPlacement.GetPrimaryDiagnostics(window);
             Check(Math.Abs(expandedLeft.ClientScreen.Left + Pixels(shape.Left * Scale(expandedLeft)) - expandedLeft.WorkArea.Left) <= 1,
                 "expanding the island preserves the flush left edge");
+            Check(expandedLeft.ClientScreen.Left + Pixels(shape.Right * Scale(expandedLeft)) > compactLeftRight,
+                "left portrait expands inward toward the right");
+            shape = new Rect(250, 7.5, 200, 35);
             dock.Cancel();
             var cancelled = WindowPlacement.GetPrimaryDiagnostics(window);
             double cancelledCenter = cancelled.ClientScreen.Left + (shape.Left + shape.Width / 2) * Scale(cancelled);
             Check(!dock.IsPreviewing && dock.Side == "top" && preferences.DockSide == "top" && persisted == 0,
                 "cancelling the preview restores the stored dock without saving");
             Check(Math.Abs(cancelledCenter - cancelled.PrimaryCenterX) <= 1,
-                "cancelled expanded island returns to the physical primary center");
+                "cancelled portrait dock returns to the horizontal primary-center capsule");
 
             double rightCenterY = cancelled.WorkArea.Top + cancelled.WorkArea.Height * .65;
             var rightPointer = new Point(cancelled.WorkArea.Right, rightCenterY);
+            shape = new Rect(318, 7.5, 64, 160);
             dock.Commit(rightPointer, rightCenterY);
             var right = WindowPlacement.GetPrimaryDiagnostics(window);
             Check(!dock.IsPreviewing && preferences.DockSide == "right" && Math.Abs(preferences.DockPosition - .65) < .000001 && persisted == 1,
                 "committing the right dock stores its position and persists once");
             Check(Math.Abs(right.ClientScreen.Left + Pixels(shape.Right * Scale(right)) - right.WorkArea.Right) <= 1,
-                "expanded visible right edge is flush with the physical work area");
+                "portrait compact visible right edge is flush with the physical work area");
+            double compactRightLeft = right.ClientScreen.Left + Pixels(shape.Left * Scale(right));
 
-            shape = new Rect(250, 7.5, 200, 35);
+            // A one-row panel is shorter than the portrait capsule, but it must
+            // still widen inward rather than changing the anchored screen edge.
+            shape = new Rect(190, 7.5, 320, 114);
+            dock.Refresh();
+            var shortRight = WindowPlacement.GetPrimaryDiagnostics(window);
+            Check(Math.Abs(shortRight.ClientScreen.Left + Pixels(shape.Right * Scale(shortRight)) - shortRight.WorkArea.Right) <= 1,
+                "short expanded panel stays flush with the physical right edge");
+            Check(shortRight.ClientScreen.Left + Pixels(shape.Left * Scale(shortRight)) < compactRightLeft,
+                "right portrait expands inward toward the left even when the panel is shorter");
+
+            shape = new Rect(318, 7.5, 64, 160);
             dock.Refresh();
             var compactRight = WindowPlacement.GetPrimaryDiagnostics(window);
             Check(Math.Abs(compactRight.ClientScreen.Left + Pixels(shape.Right * Scale(compactRight)) - compactRight.WorkArea.Right) <= 1,

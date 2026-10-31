@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using CcfDeadlineIsland.DynamicWinHost;
+using DynamicWin.UI.UIElements;
 using SkiaSharp;
 
 namespace CcfDeadlineIsland;
@@ -24,10 +26,18 @@ public static class PreviewRenderer
         var report = new Dictionary<string, object>();
         var rows = renderer.Model.Rows;
         var followedIds = renderer.Model.Preferences.FollowedConferenceIds;
-        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details" })
+        var copyAction = renderer.Model.CopyTime;
+        bool submissionOnly = renderer.Model.Preferences.SubmissionOnly;
+        bool launchAtStartup = renderer.Model.LaunchAtStartup;
+        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "settings-switches-on", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details", "left-docked", "right-docked", "left-expanded", "right-expanded", "copy-feedback" })
         {
+            string side = page.StartsWith("left-", StringComparison.Ordinal) ? "left" : page.StartsWith("right-", StringComparison.Ordinal) ? "right" : "top";
+            renderer.Model.DockSide = side;
+            DynamicWin.Main.Settings.IslandMode = side == "top" ? IslandObject.IslandMode.Notch : IslandObject.IslandMode.Island;
             bool followed = page.StartsWith("followed", StringComparison.Ordinal);
             bool urgent = followed || page.StartsWith("urgent", StringComparison.Ordinal);
+            renderer.Model.Preferences.SubmissionOnly = page == "settings-switches-on" || submissionOnly;
+            renderer.Model.LaunchAtStartup = page == "settings-switches-on" || launchAtStartup;
             renderer.Model.Preferences.FollowedConferenceIds = followed ? new() { rows[0].Id } : followedIds;
             if (urgent)
             {
@@ -38,8 +48,15 @@ public static class PreviewRenderer
                 renderer.Model.Rows = new[] { new CcfDeadlineIsland.Models.DeadlineRow(conference, deadline, DateTimeOffset.UtcNow) };
             }
             else renderer.Model.Rows = page == "list-two" ? rows.Take(2).ToArray() : rows;
-            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" => "widgets", "list-two" => "list", "urgent-details" or "followed-details" => "details", _ => page });
-            renderer.Settle(page is not ("compact" or "urgent-compact" or "followed-compact"));
+            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" or "left-docked" or "right-docked" or "left-expanded" or "right-expanded" => "widgets", "settings-switches-on" => "settings", "list-two" => "list", "urgent-details" or "followed-details" or "copy-feedback" => "details", _ => page });
+            renderer.Settle(page is not ("compact" or "urgent-compact" or "followed-compact" or "left-docked" or "right-docked"));
+            if (page == "copy-feedback")
+            {
+                renderer.Model.CopyTime = () => true;
+                var button = renderer.Menu.Controls["details.copy"].GetInputRect().Rect;
+                renderer.RoutePointerDown(button.MidX, button.MidY); renderer.RoutePointerUp(button.MidX, button.MidY);
+                renderer.Settle(true, 45);
+            }
             using var surface = SKSurface.Create(new SKImageInfo(700, 500, SKColorType.Bgra8888, SKAlphaType.Premul));
             renderer.DrawScene(surface.Canvas);
             using var full = SKBitmap.FromImage(surface.Snapshot());
@@ -61,9 +78,26 @@ public static class PreviewRenderer
                 using var stagedOutput = File.Create(Path.Combine(directory, "preview.png"));
                 stagedData.SaveTo(stagedOutput);
             }
+            if (side != "top")
+            {
+                using var stage = SKSurface.Create(new SKImageInfo(600, 500));
+                stage.Canvas.Clear(new SKColor(24, 39, 58));
+                float inset = island.Rect.Left - bounds.Left;
+                float x = side == "left" ? -inset : 600 - island.Width - inset;
+                stage.Canvas.DrawBitmap(crop, x, (500 - island.Height) / 2 - island.Rect.Top);
+                using var staged = stage.Snapshot();
+                using var stagedData = staged.Encode(SKEncodedImageFormat.Png, 100);
+                using var stagedOutput = File.Create(Path.Combine(directory, page + "-preview.png"));
+                stagedData.SaveTo(stagedOutput);
+            }
             report[page] = new { width = island.Width, height = island.Height, source = "DynamicWin main 9f24d17", controls = renderer.Menu.UiObjects.Count };
         }
         renderer.Model.Preferences.FollowedConferenceIds = followedIds;
+        renderer.Model.CopyTime = copyAction;
+        renderer.Model.Preferences.SubmissionOnly = submissionOnly;
+        renderer.Model.LaunchAtStartup = launchAtStartup;
+        renderer.Model.DockSide = "top";
+        DynamicWin.Main.Settings.IslandMode = IslandObject.IslandMode.Notch;
         File.WriteAllText(Path.Combine(directory, "geometry.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost, {dockingChecks} native docking and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");
         renderer.Dispose();

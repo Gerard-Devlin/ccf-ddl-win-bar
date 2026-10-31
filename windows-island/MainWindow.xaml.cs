@@ -190,8 +190,13 @@ public partial class MainWindow : Window
         if (ReferenceEquals(Mouse.Captured, Renderer)) Renderer.ReleaseMouseCapture();
     }
 
-    private void ApplyDockStyle() => DynamicWin.Main.Settings.IslandMode = _dock.Side == "top"
-        ? DynamicWin.UI.UIElements.IslandObject.IslandMode.Notch : DynamicWin.UI.UIElements.IslandObject.IslandMode.Island;
+    private void ApplyDockStyle()
+    {
+        // Previewed and committed docks share the same presentation immediately.
+        _model.DockSide = _dock.Side;
+        DynamicWin.Main.Settings.IslandMode = _dock.Side == "top"
+            ? DynamicWin.UI.UIElements.IslandObject.IslandMode.Notch : DynamicWin.UI.UIElements.IslandObject.IslandMode.Island;
+    }
 
     private void RendererGeometryChanged()
     {
@@ -218,7 +223,7 @@ public partial class MainWindow : Window
     {
         var menu = new ContextMenu();
         void Add(string label, Action action) { var item = new MenuItem { Header = label }; item.Click += (_, _) => action(); menu.Items.Add(item); }
-        Add("Open conference website", OpenWebsite); Add("Copy deadline times", CopyTime); Add("Export calendar (.ics)", ExportCalendar);
+        Add("Open conference website", OpenWebsite); Add("Copy deadline times", () => CopyTime()); Add("Export calendar (.ics)", ExportCalendar);
         menu.Items.Add(new Separator()); Add("Refresh", () => _ = RefreshAsync()); Add("Hide", () => { _hiddenByUser = true; Hide(); }); Add("Exit", Quit);
         return menu;
     }
@@ -316,11 +321,23 @@ public partial class MainWindow : Window
         try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
         catch (Exception error) when (error is Win32Exception or InvalidOperationException) { _model.Status = "Could not open website"; Renderer.ToolTip = error.Message; }
     }
-    private void CopyTime()
+    private bool CopyTime()
     {
-        if (Selected is not { } item) return;
-        try { System.Windows.Clipboard.SetText(string.Join("\n", item.Deadlines.Where(d => d.Utc > DateTimeOffset.UtcNow).Select(d => $"{item.Heading} | {d.Kind} | {d.LocalTime} | {d.OriginalTime}"))); _model.Status = "Deadline times copied"; }
-        catch (ExternalException error) { _model.Status = "Clipboard unavailable"; Renderer.ToolTip = error.Message; }
+        if (Selected is not { } item) return false;
+        string text = string.Join("\n", item.Deadlines.Where(d => d.Utc > DateTimeOffset.UtcNow)
+            .Select(d => $"{item.Heading} | {d.Kind} | {d.LocalTime} | {d.OriginalTime}"));
+        if (text.Length == 0) return false;
+        try
+        {
+            System.Windows.Clipboard.SetText(text);
+            _model.Status = "Deadline times copied";
+            return true;
+        }
+        catch (ExternalException error)
+        {
+            _model.Status = "Clipboard unavailable"; Renderer.ToolTip = error.Message;
+            return false;
+        }
     }
     private void ExportCalendar()
     {

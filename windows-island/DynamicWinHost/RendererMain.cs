@@ -37,7 +37,15 @@ public sealed class RendererMain : SKElement, IDisposable
     public ConferenceMenu Menu { get; }
     public ConferenceModel Model { get; }
     public InputController Input { get; }
-    public bool ContentReady => MainIsland.IsHovering && Math.Abs(MainIsland.Size.X - Menu.IslandSizeBig().X) < .5f;
+    public bool ContentReady
+    {
+        get
+        {
+            var target = Menu.IslandSizeBig();
+            return MainIsland.IsHovering && Math.Abs(MainIsland.Size.X - target.X) < .5f
+                && Math.Abs(MainIsland.Size.Y - target.Y) < .5f;
+        }
+    }
     public float alphaOverride = 1f;
     public float blurOverride;
     public float DeltaTime { get; private set; } = 1f / 60;
@@ -140,7 +148,11 @@ public sealed class RendererMain : SKElement, IDisposable
         if (IsDockDragging) return;
         _dragWasPinned = ForceExpanded;
         _dragWasDismissed = ForceCollapsed;
-        _dragExpanded = ForceExpanded || MainIsland.Size.Y > (Menu.IslandSize().Y + Menu.IslandSizeBig().Y) / 2;
+        // A portrait compact capsule can be taller than a short expanded list.
+        // Width distinguishes the two presentations consistently in every dock.
+        var compact = Menu.IslandSize();
+        var expanded = Menu.IslandSizeBig();
+        _dragExpanded = ForceExpanded || Math.Abs(MainIsland.Size.X - expanded.X) < Math.Abs(MainIsland.Size.X - compact.X);
         IsDockDragging = true;
         Input.CancelAll();
     }
