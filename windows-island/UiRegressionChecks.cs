@@ -20,12 +20,11 @@ internal static class UiRegressionChecks
         var originalRows = model.Rows;
         var originalPreferences = model.Preferences;
         var originalSave = model.SavePreferences;
-        var originalRefresh = model.Refresh;
         int originalSelection = model.SelectedIndex;
         var conferences = originalRows.Select(row => row.Conference).ToArray();
         string folder = Path.Combine(Path.GetTempPath(), "ccf-island-ui-" + Guid.NewGuid().ToString("N"));
         string settings = Path.Combine(folder, "settings.json");
-        int checks = 0, saves = 0, refreshes = 0;
+        int checks = 0, saves = 0;
         void Check(bool success, string description)
         {
             if (!success) throw new InvalidOperationException("Production UI: " + description);
@@ -61,10 +60,9 @@ internal static class UiRegressionChecks
                 if (!model.Preferences.Save(settings)) throw new InvalidOperationException("Cannot save temporary UI preferences");
                 model.Rows = model.Preferences.Visible(conferences, DateTimeOffset.UtcNow);
             };
-            model.Refresh = () => refreshes++;
 
             Page("widgets");
-            Check(menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 248, "three-conference layout is 320x248 DIP");
+            Check(menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 218, "three-conference layout is 320x218 DIP");
             Check(!menu.UiObjects.Any(item => item.GetType().Name == "DWImageButton"), "no music transport controls");
             Click("nav.filters"); renderer.Settle(true);
             Check(menu.Page == "filters" && menu.IslandSizeBig().Y == 288, "compact filters page");
@@ -126,7 +124,6 @@ internal static class UiRegressionChecks
             Click("display.animations");
 
             Page("widgets");
-            Click("list.refresh"); Check(refreshes == 1, "refresh is reachable from list footer");
             string selectedId = ((ConferenceMenu.ConferenceRow)Control("upcoming.row.1")).BoundId;
             Click("upcoming.row.1"); renderer.Settle(true);
             Check(menu.Page == "details" && menu.Selected?.Id == selectedId, "conference row opens its own deadline details");
@@ -153,13 +150,13 @@ internal static class UiRegressionChecks
                 model.Rows = new Preferences().Visible(conferences.Take(count), now);
                 Page("widgets");
                 Check(Enumerable.Range(0, 3).Count(index => Control("upcoming.row." + index).ImmediateInputEnabled) == count, count + " conferences expose exactly the available rows");
-                float expected = count == 0 ? 160 : 92 + 52 * count;
+                float expected = count == 0 ? 146 : 62 + 52 * count;
                 Check(menu.IslandSizeBig().Y == expected, count + " conferences use compact non-overlapping geometry");
                 var island = renderer.MainIsland.GetRect().Rect;
                 for (int index = 0; index < count; index++)
                 {
                     var bounds = Control("upcoming.row." + index).GetInputRect().Rect;
-                    Check(bounds.Left >= island.Left && bounds.Right <= island.Right && bounds.Top >= island.Top + 48 && bounds.Bottom <= island.Bottom - 40, "row stays inside shell and above footer");
+                    Check(bounds.Left >= island.Left && bounds.Right <= island.Right && bounds.Top >= island.Top + 48 && bounds.Bottom <= island.Bottom - 16, "row stays inside shell with bottom padding");
                 }
             }
             var longTitle = conferences[0] with { Id = "long-title", Title = "International Conference on a Very Long Conference Name for Layout Verification" };
@@ -182,7 +179,7 @@ internal static class UiRegressionChecks
                 Deadlines = new() { later with { Utc = now.AddDays(index + 2) } }
             }).ToArray();
             model.Rows = new Preferences().Visible(allConferences, now); Page("list");
-            Check(menu.IslandSizeBig().Y == 360, "all-conferences page has separate scrollable height");
+            Check(menu.IslandSizeBig().Y == 322, "all-conferences page has separate scrollable height");
             Check(((ConferenceMenu.ConferenceRow)Control("list.row.0")).BoundId == "scroll-0", "all-conferences list starts at first row");
             menu.Scroll(-120); renderer.Settle(true);
             Check(((ConferenceMenu.ConferenceRow)Control("list.row.0")).BoundId == "scroll-1", "all-conferences list scrolls through later rows");
@@ -213,7 +210,7 @@ internal static class UiRegressionChecks
         {
             renderer.Input.CancelAll();
             model.Rows = originalRows; model.Preferences = originalPreferences; model.SavePreferences = originalSave;
-            model.Refresh = originalRefresh; model.SelectedIndex = originalSelection;
+            model.SelectedIndex = originalSelection;
             menu.ShowPage("widgets"); renderer.Settle(true);
             if (File.Exists(settings)) File.Delete(settings);
             if (Directory.Exists(folder)) Directory.Delete(folder);

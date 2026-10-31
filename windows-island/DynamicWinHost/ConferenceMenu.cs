@@ -52,12 +52,9 @@ public sealed class ConferenceMenu : IIslandMenu
     private readonly ToggleButton _submission;
     private readonly ToggleButton _animations;
     private readonly Label _empty;
-    private readonly Label _status;
-    private readonly Label _pageNumber;
     private readonly Label _detailTitle;
     private readonly Label _detailPage;
     private readonly DeadlinePanel[] _detailPanels = new DeadlinePanel[2];
-    private readonly MenuButton _refresh;
     private readonly MenuButton _emptyAction;
     private readonly MenuButton _previousDeadlines;
     private readonly MenuButton _nextDeadlines;
@@ -110,10 +107,6 @@ public sealed class ConferenceMenu : IIslandMenu
         {
             if (HasFilters()) ResetFilters(); else _model.Refresh?.Invoke();
         });
-        _status = new Label(island, 16, 220, 176, 17, 10, Theme.TextThird);
-        _pageNumber = new Label(island, 190, 334, 54, 17, 10, Theme.TextThird) { Center = true };
-        UiObjects.Add(_status); UiObjects.Add(_pageNumber);
-        _refresh = Button("list.refresh", "Refresh", 250, 214, 54, 24, () => _model.Refresh?.Invoke());
 
         AddLabel("filters", "CCF rank", 16, 50, 288, 18, 11, Theme.TextSecond);
         for (int index = 0; index < Preferences.CcfValues.Length; index++)
@@ -177,8 +170,8 @@ public sealed class ConferenceMenu : IIslandMenu
     }
     public Vec2 IslandSizeBig() => new(320, Page switch
     {
-        "filters" => 288, "display" => 180, "list" => 360, "details" => 352,
-        _ => _model.Rows.Count == 0 ? 160 : 92 + 52 * Math.Min(3, _model.Rows.Count)
+        "filters" => 288, "display" => 180, "list" => 322, "details" => 352,
+        _ => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(3, _model.Rows.Count)
     });
     public Col IslandBorderColor() => Col.Transparent;
 
@@ -249,14 +242,6 @@ public sealed class ConferenceMenu : IIslandMenu
         _empty.Text = _model.Loading ? "Loading conferences..." : HasFilters() ? "No matching conferences" : "No upcoming conferences";
         _emptyAction.SetActive(expanded && listPage && empty && !_model.Loading);
         _emptyAction.Text = HasFilters() ? "Reset filters" : "Retry";
-        float height = IslandSizeBig().Y;
-        _status.Position = new Vec2(16, height - 27);
-        _status.Text = _model.Status; _status.SetActive(expanded && listPage);
-        _refresh.Position = new Vec2(250, height - 34); _refresh.Text = _model.Loading ? "..." : _model.Status.StartsWith("Offline", StringComparison.Ordinal) ? "Retry" : "Refresh";
-        _refresh.AcceptsInput = !_model.Loading;
-        _refresh.SetActive(expanded && listPage);
-        _pageNumber.Text = _model.Rows.Count == 0 ? "" : $"{_listOffset + 1}-{Math.Min(_model.Rows.Count, _listOffset + 5)}/{_model.Rows.Count}";
-        _pageNumber.SetActive(expanded && Page == "list");
         UpdateDetails(expanded);
     }
 

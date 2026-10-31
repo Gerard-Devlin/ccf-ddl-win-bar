@@ -18,7 +18,7 @@ public sealed class DeadlineService : IDisposable
     {
         _cachePath = cachePath;
         _client = client ?? new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd("CCF-Deadline-Island/0.1.1");
+        _client.DefaultRequestHeaders.UserAgent.ParseAdd("CCF-Deadline-Island/0.1.2");
     }
 
     public async Task<DeadlineSnapshot> FetchAsync(IEnumerable<string>? urls = null, CancellationToken cancellation = default)

@@ -6,7 +6,8 @@ Windows 灵动岛版 CCF 截止时间工具。界面直接使用
 
 ![Upcoming conferences](docs/screenshots/upcoming.png)
 
-0.1.1 的实际渲染截图与验收记录见 [QA-0.1.1](docs/QA-0.1.1.md)。
+0.1.2 移除了列表底部整行状态与刷新按钮，并收紧底部留白。
+交互与定位验收记录见 [QA-0.1.1](docs/QA-0.1.1.md)。
 
 上游默认 `V2` 分支只提供发行文件。本项目使用其公开 `main` 分支的源码，固定在
 `9f24d176a16333b1cfda21dd3ed48087497194ed`；63 个原始源码/资源文件及许可证位于
@@ -41,8 +42,8 @@ dotnet run --project windows-island/CcfDeadlineIsland.csproj
 输出：
 
 ```text
-artifacts/windows-island-0.1.1/
-artifacts/CCF-Deadline-Island_0.1.1_x64-setup.exe
+artifacts/windows-island-0.1.2/
+artifacts/CCF-Deadline-Island_0.1.2_x64-setup.exe
 ```
 
 `./windows-island/Build.ps1 -PublishOnly` 只生成自包含应用。分发整个输出目录，以保留字体、图标和许可证文件。
