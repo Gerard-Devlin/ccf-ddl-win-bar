@@ -29,6 +29,7 @@ public sealed class ConferenceModel
 {
     public IReadOnlyList<DeadlineRow> Rows { get; set; } = Array.Empty<DeadlineRow>();
     public int SelectedIndex { get; set; }
+    public string SelectedConferenceId { get; set; } = "";
     public Preferences Preferences { get; set; } = new();
     public string Status { get; set; } = "Loading...";
     public bool Loading { get; set; }
@@ -48,12 +49,12 @@ public sealed class ConferenceMenu : IIslandMenu
     private readonly ConferenceRow[] _upcomingRows = new ConferenceRow[3];
     private readonly ConferenceRow[] _listRows = new ConferenceRow[5];
     private readonly Dictionary<string, ToggleButton> _ranks = new();
+    private readonly Dictionary<string, ToggleButton> _areas = new();
     private readonly Dictionary<int, ToggleButton> _ranges = new();
     private readonly ToggleButton _submission;
     private readonly ToggleButton _animations;
     private readonly Label _empty;
     private readonly Label _detailTitle;
-    private readonly Label _detailPage;
     private readonly DeadlinePanel[] _detailPanels = new DeadlinePanel[2];
     private readonly MenuButton _emptyAction;
     private readonly MenuButton _previousDeadlines;
@@ -71,7 +72,8 @@ public sealed class ConferenceMenu : IIslandMenu
     public Action<string>? PageChanged { get; set; }
     public DeadlineRow? Selected => Page == "details" && _selectedId.Length > 0
         ? _model.Rows.FirstOrDefault(row => row.Id == _selectedId)
-        : _model.Rows.ElementAtOrDefault(Math.Clamp(_model.SelectedIndex, 0, Math.Max(0, _model.Rows.Count - 1)));
+        : (_model.SelectedConferenceId.Length > 0 ? _model.Rows.FirstOrDefault(row => row.Id == _model.SelectedConferenceId) : null)
+            ?? _model.Rows.ElementAtOrDefault(Math.Clamp(_model.SelectedIndex, 0, Math.Max(0, _model.Rows.Count - 1)));
 
     public ConferenceMenu(IslandObject island, ConferenceModel model)
     {
@@ -120,20 +122,37 @@ public sealed class ConferenceMenu : IIslandMenu
             });
             chip.FontSize = rank == "N" ? 9.5f : 11; Register("filters.rank." + rank, chip, "filters"); _ranks[rank] = chip;
         }
-        AddLabel("filters", "Deadline range", 16, 114, 288, 18, 11, Theme.TextSecond);
+        AddLabel("filters", "Research area", 16, 114, 180, 18, 11, Theme.TextSecond);
+        AddPageButton("filters", "filters.area.all", "All", 215, 110, 35, 24, () =>
+        { _model.Preferences.Categories = new(Preferences.Areas.Keys); SaveAndRefresh(); }).FontSize = 10;
+        AddPageButton("filters", "filters.area.clear", "Clear", 260, 110, 44, 24, () =>
+        { _model.Preferences.Categories.Clear(); SaveAndRefresh(); }).FontSize = 10;
+        string[] areas = { "AI", "DB", "SE", "SC", "CG", "DS", "NW", "CT", "HI", "MX" };
+        for (int index = 0; index < areas.Length; index++)
+        {
+            string area = areas[index];
+            var chip = new ToggleButton(island, area, 16 + index % 5 * 59, 137 + index / 5 * 34, 52, 28, () =>
+            {
+                if (_model.Preferences.Categories.Contains(area)) _model.Preferences.Categories.Remove(area);
+                else _model.Preferences.Categories.Add(area);
+                SaveAndRefresh();
+            }) { FontSize = 11 };
+            Register("filters.area." + area, chip, "filters"); _areas[area] = chip;
+        }
+        AddLabel("filters", "Deadline range", 16, 210, 288, 18, 11, Theme.TextSecond);
         int[] days = { 30, 90, 180, 365 };
         for (int index = 0; index < days.Length; index++)
         {
             int range = days[index];
-            var chip = new ToggleButton(island, range + " days", 16 + index * 74, 137, 66, 30, () =>
+            var chip = new ToggleButton(island, range + " days", 16 + index * 74, 233, 66, 30, () =>
             { _model.Preferences.WithinDays = range; SaveAndRefresh(); });
             chip.FontSize = 10; Register("filters.range." + range, chip, "filters"); _ranges[range] = chip;
         }
-        _submission = new ToggleButton(island, "Submission deadlines only", 16, 188, 288, 36, () =>
+        _submission = new ToggleButton(island, "Submission deadlines only", 16, 280, 288, 36, () =>
         { _model.Preferences.SubmissionOnly = !_model.Preferences.SubmissionOnly; SaveAndRefresh(); }) { FullRow = true, FontSize = 12 };
         Register("filters.submission", _submission, "filters");
-        AddPageButton("filters", "filters.reset", "Reset filters", 16, 244, 114, 28, ResetFilters);
-        AddPageButton("filters", "filters.done", "Done", 236, 244, 68, 28, () => ShowPage(_returnPage));
+        AddPageButton("filters", "filters.reset", "Reset filters", 16, 336, 114, 28, ResetFilters);
+        AddPageButton("filters", "filters.done", "Done", 236, 336, 68, 28, () => ShowPage(_returnPage));
 
         AddLabel("display", "Display", 16, 51, 288, 23, 15, Theme.TextMain, bold: true);
         _animations = new ToggleButton(island, "Animations", 16, 83, 288, 36, () =>
@@ -148,21 +167,20 @@ public sealed class ConferenceMenu : IIslandMenu
             _detailPanels[i] = new DeadlinePanel(island, 16, 87 + i * 83, 288, 75);
             UiObjects.Add(_detailPanels[i]);
         }
-        AddPageButton("details", "details.website", "Website", 16, 267, 100, 28, () => InvokeSelected(_model.OpenWebsite));
-        AddPageButton("details", "details.copy", "Copy times", 124, 267, 78, 28, () => InvokeSelected(_model.CopyTime));
-        AddPageButton("details", "details.calendar", "Calendar", 210, 267, 94, 28, () => InvokeSelected(_model.ExportCalendar));
+        AddPageButton("details", "details.website", "Website", 16, 267, 100, 28, () => InvokeSelected(_model.OpenWebsite)).LeadingGlyph = ButtonGlyph.Website;
+        AddPageButton("details", "details.copy", "Copy", 124, 267, 78, 28, () => InvokeSelected(_model.CopyTime)).LeadingGlyph = ButtonGlyph.Copy;
+        AddPageButton("details", "details.calendar", "Calendar", 210, 267, 94, 28, () => InvokeSelected(_model.ExportCalendar)).LeadingGlyph = ButtonGlyph.Calendar;
         _previousDeadlines = Button("details.previous", "<", 16, 313, 30, 24, () => Scroll(120));
         _previousDeadlines.ActionName = "Previous deadline dates";
         _nextDeadlines = Button("details.next", ">", 274, 313, 30, 24, () => Scroll(-120));
         _nextDeadlines.ActionName = "Next deadline dates";
-        _detailPage = AddLabel("details", "", 53, 313, 214, 24, 10, Theme.TextThird, center: true);
 
         foreach (var item in UiObjects) item.SilentSetActive(false);
     }
 
     public Vec2 IslandSize()
     {
-        var row = _model.Rows.FirstOrDefault();
+        var row = Selected;
         string title = row?.Conference.Title ?? "CCF";
         string remaining = row is null ? (_model.Loading ? "Loading" : "--") : Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow);
         using var paint = new SKPaint { Typeface = Res.InterRegular, TextSize = 14 };
@@ -170,7 +188,7 @@ public sealed class ConferenceMenu : IIslandMenu
     }
     public Vec2 IslandSizeBig() => new(320, Page switch
     {
-        "filters" => 288, "display" => 180, "list" => 322, "details" => 352,
+        "filters" => 380, "display" => 180, "list" => 322, "details" => _detailTotal > 2 ? 352 : 311,
         _ => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(3, _model.Rows.Count)
     });
     public Col IslandBorderColor() => Col.Transparent;
@@ -198,7 +216,9 @@ public sealed class ConferenceMenu : IIslandMenu
     public void SelectRelative(int delta)
     {
         if (_model.Rows.Count == 0) return;
+        ReconcileSelection();
         _model.SelectedIndex = ((_model.SelectedIndex + delta) % _model.Rows.Count + _model.Rows.Count) % _model.Rows.Count;
+        _model.SelectedConferenceId = _model.Rows[_model.SelectedIndex].Id;
         if (Page == "details") { _selectedId = _model.Rows[_model.SelectedIndex].Id; _detailOffset = 0; }
         Update();
     }
@@ -206,10 +226,10 @@ public sealed class ConferenceMenu : IIslandMenu
     public void Update()
     {
         bool expanded = _island.IsHovering;
-        if (_model.Rows.Count > 0) _model.SelectedIndex = Math.Clamp(_model.SelectedIndex, 0, _model.Rows.Count - 1);
+        ReconcileSelection();
         if (Page == "details" && _selectedId.Length > 0 && !_model.Rows.Any(row => row.Id == _selectedId))
         { Page = "widgets"; _selectedId = ""; PageChanged?.Invoke(Page); }
-        var next = _model.Rows.FirstOrDefault();
+        var next = Selected;
         _compactContainer.Size = IslandSize() - 35;
         _compactTitle.SilentSetText(next is null ? "CCF" : DWText.Truncate(next.Conference.Title, 12));
         _compactCountdown.SilentSetText(next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow));
@@ -233,6 +253,7 @@ public sealed class ConferenceMenu : IIslandMenu
             _listRows[i].SetActive(expanded && Page == "list" && _listRows[i].Row is not null);
         }
         foreach (var pair in _ranks) pair.Value.IsSelected = _model.Preferences.Ccf.Contains(pair.Key);
+        foreach (var pair in _areas) pair.Value.IsSelected = _model.Preferences.Categories.Contains(pair.Key);
         foreach (var pair in _ranges) pair.Value.IsSelected = _model.Preferences.WithinDays == pair.Key;
         _submission.IsSelected = _model.Preferences.SubmissionOnly;
         _animations.IsSelected = !_model.Preferences.ReducedMotion;
@@ -243,6 +264,14 @@ public sealed class ConferenceMenu : IIslandMenu
         _emptyAction.SetActive(expanded && listPage && empty && !_model.Loading);
         _emptyAction.Text = HasFilters() ? "Reset filters" : "Retry";
         UpdateDetails(expanded);
+    }
+
+    private void ReconcileSelection()
+    {
+        int selectedIndex = _model.SelectedConferenceId.Length > 0
+            ? _model.Rows.ToList().FindIndex(row => row.Id == _model.SelectedConferenceId) : -1;
+        _model.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        if (selectedIndex < 0) _model.SelectedConferenceId = "";
     }
 
     private void UpdateDetails(bool expanded)
@@ -268,20 +297,19 @@ public sealed class ConferenceMenu : IIslandMenu
         _nextDeadlines.AcceptsInput = _detailOffset + 2 < points.Count;
         _previousDeadlines.SetActive(expanded && Page == "details" && points.Count > 2);
         _nextDeadlines.SetActive(expanded && Page == "details" && points.Count > 2);
-        _detailPage.Text = points.Count == 0 ? "No future deadlines" : $"{_detailOffset + 1}-{Math.Min(points.Count, _detailOffset + 2)} / {points.Count} deadline dates";
     }
     private void OpenDetails(string id, string fromPage)
     {
         int index = _model.Rows.ToList().FindIndex(row => row.Id == id && row.Deadline.Utc > DateTimeOffset.UtcNow);
         if (index < 0) return;
-        _model.SelectedIndex = index; _selectedId = id; _detailOffset = 0; _detailsReturnPage = fromPage;
+        _model.SelectedIndex = index; _model.SelectedConferenceId = id; _selectedId = id; _detailOffset = 0; _detailsReturnPage = fromPage;
         Page = "details"; PageChanged?.Invoke(Page); Update();
     }
     private void InvokeSelected(Action? action)
     {
         int index = _model.Rows.ToList().FindIndex(row => row.Id == _selectedId && row.Deadline.Utc > DateTimeOffset.UtcNow);
         if (index < 0) { ShowPage("widgets"); return; }
-        _model.SelectedIndex = index; action?.Invoke();
+        _model.SelectedIndex = index; _model.SelectedConferenceId = _selectedId; action?.Invoke();
     }
     private bool HasFilters() => _model.Preferences.Ccf.Count != Preferences.CcfValues.Length || _model.Preferences.WithinDays != 365
         || _model.Preferences.SubmissionOnly || _model.Preferences.Core.Count != Preferences.CoreValues.Length
@@ -318,6 +346,8 @@ public sealed class ConferenceMenu : IIslandMenu
     private Label AddLabel(string page, string text, float x, float y, float width, float height, float size, Col color, bool bold = false, bool center = false)
     { var label = new Label(_island, x, y, width, height, size, color) { Text = text, Bold = bold, Center = center }; AddPageObject(page, label); return label; }
 
+    public enum ButtonGlyph { None, Website, Copy, Calendar }
+
     public class MenuButton : DWButton
     {
         public string StableId { get; set; } = "";
@@ -326,6 +356,7 @@ public sealed class ConferenceMenu : IIslandMenu
         public float FontSize { get; set; } = 11.5f;
         public bool IsSelected { get; set; }
         public SKBitmap? Icon { get; set; }
+        public ButtonGlyph LeadingGlyph { get; set; }
         public MenuButton(IslandObject island, string text, float x, float y, float width, float height, Action action)
             : base(island, new Vec2(x, y), new Vec2(width, height), action, UIAlignment.TopLeft)
         {
@@ -348,7 +379,50 @@ public sealed class ConferenceMenu : IIslandMenu
                 using var paint = GetPaint(); paint.Color = foreground.Value();
                 canvas.DrawBitmap(Icon, SKRect.Create(Position.X + (Size.X - 15) / 2, Position.Y + (Size.Y - 15) / 2, 15, 15), paint);
             }
+            else if (LeadingGlyph != ButtonGlyph.None)
+            {
+                const float iconSize = 14, gap = 6;
+                using var measure = new SKPaint { Typeface = Res.InterRegular, TextSize = FontSize };
+                string label = Fit(Text, measure, Size.X - 12 - iconSize - gap);
+                float groupWidth = iconSize + gap + measure.MeasureText(label);
+                float left = Position.X + (Size.X - groupWidth) / 2;
+                DrawLeadingGlyph(canvas, LeadingGlyph, left, Position.Y + (Size.Y - iconSize) / 2, foreground);
+                DrawText(canvas, label, left + iconSize + gap, Position.Y + Size.Y / 2, FontSize, foreground, middle: true);
+            }
             else DrawText(canvas, Text, Position.X + Size.X / 2, Position.Y + Size.Y / 2, FontSize, foreground, centered: true, middle: true, maxWidth: Size.X - 12);
+        }
+
+        private static void DrawLeadingGlyph(SKCanvas canvas, ButtonGlyph glyph, float x, float y, Col color)
+        {
+            using var paint = new SKPaint
+            {
+                IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.25f,
+                StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round, Color = color.Value()
+            };
+            using var path = new SKPath();
+            switch (glyph)
+            {
+                case ButtonGlyph.Website:
+                    path.MoveTo(x + 7, y + 2); path.LineTo(x + 12, y + 2); path.LineTo(x + 12, y + 7);
+                    path.MoveTo(x + 12, y + 2); path.LineTo(x + 6.5f, y + 7.5f);
+                    path.MoveTo(x + 5, y + 3.5f); path.LineTo(x + 2, y + 3.5f); path.LineTo(x + 2, y + 12);
+                    path.LineTo(x + 10.5f, y + 12); path.LineTo(x + 10.5f, y + 9);
+                    canvas.DrawPath(path, paint);
+                    break;
+                case ButtonGlyph.Copy:
+                    path.MoveTo(x + 3.5f, y + 10); path.LineTo(x + 1.5f, y + 10);
+                    path.LineTo(x + 1.5f, y + 1.5f); path.LineTo(x + 10, y + 1.5f); path.LineTo(x + 10, y + 3.5f);
+                    canvas.DrawPath(path, paint);
+                    canvas.DrawRoundRect(SKRect.Create(x + 4.5f, y + 4.5f, 8, 8), 1, 1, paint);
+                    break;
+                case ButtonGlyph.Calendar:
+                    canvas.DrawRoundRect(SKRect.Create(x + 1.5f, y + 3, 11, 9.5f), 1.5f, 1.5f, paint);
+                    path.MoveTo(x + 4, y + 1.5f); path.LineTo(x + 4, y + 4.5f);
+                    path.MoveTo(x + 10, y + 1.5f); path.LineTo(x + 10, y + 4.5f);
+                    path.MoveTo(x + 1.5f, y + 6); path.LineTo(x + 12.5f, y + 6);
+                    canvas.DrawPath(path, paint);
+                    break;
+            }
         }
     }
     public sealed class ToggleButton : MenuButton

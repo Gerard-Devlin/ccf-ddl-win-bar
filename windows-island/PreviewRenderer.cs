@@ -18,6 +18,7 @@ public static class PreviewRenderer
         renderer.Arrange(new Rect(0, 0, 700, 500));
         window.PrepareOffscreenPreview();
         int checks = UiRegressionChecks.Run(renderer);
+        int nativeChecks = NativeWindowChecks.Run();
         var report = new Dictionary<string, object>();
         foreach (string page in new[] { "widgets", "list", "details", "filters", "display", "compact" })
         {
@@ -47,7 +48,7 @@ public static class PreviewRenderer
             report[page] = new { width = island.Width, height = island.Height, source = "DynamicWin main 9f24d17", controls = renderer.Menu.UiObjects.Count };
         }
         File.WriteAllText(Path.Combine(directory, "geometry.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-        File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI checks passed via WPF routed pointer events and keyboard input. No desktop window was opened.\n");
+        File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost checks passed. No desktop window was opened.\n");
         renderer.Dispose();
     }
 }

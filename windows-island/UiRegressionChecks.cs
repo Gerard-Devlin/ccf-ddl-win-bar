@@ -21,6 +21,7 @@ internal static class UiRegressionChecks
         var originalPreferences = model.Preferences;
         var originalSave = model.SavePreferences;
         int originalSelection = model.SelectedIndex;
+        string originalSelectedId = model.SelectedConferenceId;
         var conferences = originalRows.Select(row => row.Conference).ToArray();
         string folder = Path.Combine(Path.GetTempPath(), "ccf-island-ui-" + Guid.NewGuid().ToString("N"));
         string settings = Path.Combine(folder, "settings.json");
@@ -65,7 +66,7 @@ internal static class UiRegressionChecks
             Check(menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 218, "three-conference layout is 320x218 DIP");
             Check(!menu.UiObjects.Any(item => item.GetType().Name == "DWImageButton"), "no music transport controls");
             Click("nav.filters"); renderer.Settle(true);
-            Check(menu.Page == "filters" && menu.IslandSizeBig().Y == 288, "compact filters page");
+            Check(menu.Page == "filters" && menu.IslandSizeBig().Y == 380, "filters include research areas within the shell");
             var rank = (ConferenceMenu.ToggleButton)Control("filters.rank.A");
             int beforeDowns = renderer.RoutedPointerDownCount, beforeUps = renderer.RoutedPointerUpCount;
             int beforeSaves = saves;
@@ -118,6 +119,14 @@ internal static class UiRegressionChecks
             Check(ReferenceEquals(renderer.Input.FocusedTarget, focused), "Shift+Tab and Tab traverse controls in opposite directions");
             Click("filters.reset");
             Check(!model.Preferences.SubmissionOnly && model.Preferences.WithinDays == 365 && model.Preferences.Ccf.Count == 4, "reset restores filters");
+            Click("filters.area.clear");
+            Check(model.Preferences.Categories.Count == 0 && model.Rows.Count == 0, "clearing research areas produces an empty result");
+            Click("filters.area.AI");
+            Check(model.Preferences.Categories.SequenceEqual(new[] { "AI" }) && model.Rows.Count == 2
+                && model.Rows.All(row => row.Conference.Area == "AI"), "research area filters conference data immediately");
+            Check(Preferences.Load(settings).Categories.SequenceEqual(new[] { "AI" }), "research area selection survives preference reload");
+            Click("filters.area.all");
+            Check(model.Preferences.Categories.Count == Preferences.Areas.Count && model.Rows.Count == conferences.Length, "all research areas restores conferences");
             Page("display");
             Click("display.animations");
             Check(model.Preferences.ReducedMotion && Preferences.Load(settings).ReducedMotion, "animation preference has separate display page and persists");
@@ -130,6 +139,14 @@ internal static class UiRegressionChecks
             Check(Control("details.website").ImmediateInputEnabled, "explicit website action is available in details");
             Click("details.back"); renderer.Settle(true);
             Check(menu.Page == "widgets", "details Back restores origin page");
+            renderer.Settle(false);
+            var chosen = model.Rows.Single(row => row.Id == selectedId);
+            Check(menu.UiObjects.OfType<DynamicWin.UI.UIElements.DWText>().Any(text => text.Text == chosen.Conference.Title)
+                && menu.Selected?.Id == selectedId, "compact title follows the selected conference instead of the first row");
+            model.Rows = model.Rows.Reverse().ToArray(); menu.Update();
+            Check(menu.Selected?.Id == selectedId && model.Rows[model.SelectedIndex].Id == selectedId,
+                "selected conference survives data reordering by stable ID");
+            model.Rows = model.Preferences.Visible(conferences, DateTimeOffset.UtcNow); renderer.Settle(true);
 
             var rowPoint = Center("upcoming.row.0");
             renderer.RoutePointerDown(rowPoint.X, rowPoint.Y);
@@ -211,6 +228,7 @@ internal static class UiRegressionChecks
             renderer.Input.CancelAll();
             model.Rows = originalRows; model.Preferences = originalPreferences; model.SavePreferences = originalSave;
             model.SelectedIndex = originalSelection;
+            model.SelectedConferenceId = originalSelectedId;
             menu.ShowPage("widgets"); renderer.Settle(true);
             if (File.Exists(settings)) File.Delete(settings);
             if (Directory.Exists(folder)) Directory.Delete(folder);

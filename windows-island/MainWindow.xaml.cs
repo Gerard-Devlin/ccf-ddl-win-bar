@@ -31,7 +31,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _refresh = new() { Interval = TimeSpan.FromMinutes(10) };
     private DeadlineSnapshot? _snapshot;
     private Forms.NotifyIcon? _tray;
-    private bool _quitting, _hiddenByUser, _modalOpen, _hiddenByFullscreen, _contextMenuOpen;
+    private bool _quitting, _hiddenByUser, _modalOpen, _contextMenuOpen;
     private IDisposable? _placement;
     private string _error = "";
     public RendererMain Renderer { get; }
@@ -58,8 +58,9 @@ public partial class MainWindow : Window
         Renderer.ContextMenuClosing += (_, _) => _contextMenuOpen = false;
         RenderRoot.Children.Add(Renderer);
         _placement = WindowPlacement.AttachPrimary(this);
-        if (preview) { ShowInTaskbar = true; Topmost = false; Title += " — Preview"; }
+        if (preview) { ShowInTaskbar = true; Title += " — Preview"; }
         Loaded += OnLoaded; Closing += OnClosing; Closed += OnClosed;
+        StateChanged += (_, _) => MaintainTopmost();
         _clock.Tick += (_, _) => Tick();
         _refresh.Tick += async (_, _) => await RefreshAsync();
     }
@@ -69,6 +70,7 @@ public partial class MainWindow : Window
         if (!_preview) { CreateTray(); WindowPlacement.RegisterShortcut(this, () => { if (Renderer.ForceExpanded) Collapse(); else Reveal(); }); }
         _snapshot = _demo ? DemoSnapshot() : _service.ReadCache();
         UpdateData(); _clock.Start(); _refresh.Start();
+        MaintainTopmost();
         if (_preview) Reveal();
         WriteDiagnostics();
         if (!_demo) await RefreshAsync();
@@ -81,7 +83,7 @@ public partial class MainWindow : Window
         if (!Renderer.MainIsland.GetInteractionRect().Contains(SKRect.Create((float)point.X, (float)point.Y, 1, 1))) { handled = true; return new IntPtr(-1); }
         return IntPtr.Zero;
     }
-    public void Reveal() { _hiddenByUser = false; _hiddenByFullscreen = false; Show(); Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate(); Renderer.Focus(); }
+    public void Reveal() { _hiddenByUser = false; Show(); MaintainTopmost(); Renderer.ForceCollapsed = false; Renderer.ForceExpanded = true; Activate(); Renderer.Focus(); }
     private void Collapse() { Renderer.Input.CancelAll(); Renderer.ForceExpanded = false; Renderer.ForceCollapsed = true; Renderer.Menu.ShowPage("widgets"); }
     private void WindowMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -92,6 +94,7 @@ public partial class MainWindow : Window
     {
         Renderer.Input.CancelAll();
         if (!_preview && !_modalOpen && !_contextMenuOpen) Collapse();
+        MaintainTopmost();
     }
     private void WindowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
@@ -111,6 +114,8 @@ public partial class MainWindow : Window
     private void CreateTray()
     {
         var menu = new Forms.ContextMenuStrip();
+        menu.Opening += (_, _) => _contextMenuOpen = true;
+        menu.Closed += (_, _) => _contextMenuOpen = false;
         menu.Items.Add("Show CCF Deadlines", null, (_, _) => Reveal()); menu.Items.Add("Refresh", null, async (_, _) => await RefreshAsync()); menu.Items.Add("Exit", null, (_, _) => Quit());
         var icon = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/Assets/icon.ico"))!.Stream;
         _tray = new Forms.NotifyIcon { Text = "CCF Deadline Island · Ctrl+Alt+D", Icon = new System.Drawing.Icon(icon), ContextMenuStrip = menu, Visible = true };
@@ -141,11 +146,14 @@ public partial class MainWindow : Window
     private void Tick()
     {
         UpdateData();
+        MaintainTopmost();
         WriteDiagnostics();
-        if (_preview || _hiddenByUser) return;
-        bool fullscreen = WindowPlacement.ForegroundIsFullscreen(this);
-        if (fullscreen && !_hiddenByFullscreen) { _hiddenByFullscreen = true; Collapse(); Hide(); }
-        else if (!fullscreen && _hiddenByFullscreen) { _hiddenByFullscreen = false; Show(); }
+    }
+    private void MaintainTopmost()
+    {
+        if (!IsLoaded || _quitting || _hiddenByUser || _modalOpen || _contextMenuOpen) return;
+        // Restore shell/show-desktop changes without taking keyboard focus.
+        WindowPlacement.EnsureTopmost(this, makeVisible: true);
     }
     private void WriteDiagnostics()
     {
@@ -166,6 +174,7 @@ public partial class MainWindow : Window
             {
                 version = typeof(MainWindow).Assembly.GetName().Version?.ToString(),
                 page = Renderer.Menu.Page,
+                window = new { visible = IsVisible, topmost = Topmost, hiddenByUser = _hiddenByUser, state = WindowState.ToString() },
                 primaryPlacement = placement,
                 island = new { left = island.Left, top = island.Top, width = island.Width, height = island.Height,
                     centerPixels = islandCenterPixels, centerDeviationPixels = islandCenterPixels - placement.PrimaryCenterX },
@@ -173,6 +182,7 @@ public partial class MainWindow : Window
                     focused = Renderer.Input.FocusedTarget?.InputIdentity, captured = Renderer.Input.CapturedTarget?.InputIdentity,
                     pinned = Renderer.ForceExpanded, dismissed = Renderer.ForceCollapsed },
                 ccf = _model.Preferences.Ccf.ToArray(), withinDays = _model.Preferences.WithinDays,
+                areas = _model.Preferences.Categories.ToArray(), selectedConference = Renderer.Menu.Selected?.Id,
                 submissionOnly = _model.Preferences.SubmissionOnly,
                 reducedMotion = _model.Preferences.ReducedMotion,
                 controls,

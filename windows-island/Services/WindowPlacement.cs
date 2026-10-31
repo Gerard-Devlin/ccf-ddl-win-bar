@@ -34,14 +34,14 @@ public static class WindowPlacement
 
     [DllImport("user32.dll", SetLastError = true)] private static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool UnregisterHotKey(IntPtr window, int id);
-    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll", SetLastError = true)] private static extern bool GetWindowRect(IntPtr hwnd, out NativeRect rect);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool GetClientRect(IntPtr hwnd, out NativeRect rect);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool ClientToScreen(IntPtr hwnd, ref NativePoint point);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnum callback, IntPtr parameter);
     [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", SetLastError = true)] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo information);
-    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
 
@@ -60,6 +60,18 @@ public static class WindowPlacement
     {
         var handle = new WindowInteropHelper(window).Handle;
         if (handle != IntPtr.Zero) UnregisterHotKey(handle, HotkeyId);
+    }
+
+    /// <summary>Restore the native topmost band without activating or moving the window.</summary>
+    public static bool EnsureTopmost(Window window, bool makeVisible = false)
+    {
+        window.Topmost = true;
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == IntPtr.Zero) return false;
+        if (makeVisible && IsIconic(handle)) ShowWindow(handle, 4); // SW_SHOWNOACTIVATE
+        const uint noSize = 0x0001, noMove = 0x0002, noActivate = 0x0010, noOwnerZOrder = 0x0200, showWindow = 0x0040;
+        return SetWindowPos(handle, new IntPtr(-1), 0, 0, 0, 0,
+            noSize | noMove | noActivate | noOwnerZOrder | (makeVisible ? showWindow : 0));
     }
 
     /// <summary>Attach once; dispose when the owning window closes.</summary>
@@ -124,22 +136,6 @@ public static class WindowPlacement
         {
             const uint noSize = 0x0001, noZOrder = 0x0004, noActivate = 0x0010, noOwnerZOrder = 0x0200;
             SetWindowPos(handle, IntPtr.Zero, position.X, position.Y, 0, 0, noSize | noZOrder | noActivate | noOwnerZOrder);
-        }
-        finally { if (previousContext != IntPtr.Zero) SetThreadDpiAwarenessContext(previousContext); }
-    }
-
-    public static bool ForegroundIsFullscreen(Window window)
-    {
-        var foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero || foreground == new WindowInteropHelper(window).Handle) return false;
-        var previousContext = SetThreadDpiAwarenessContext(PerMonitorV2);
-        try
-        {
-            if (!GetWindowRect(foreground, out var rectangle)) return false;
-            var monitor = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-            if (!GetMonitorInfo(MonitorFromWindow(foreground, 2), ref monitor)) return false;
-            var bounds = monitor.Monitor;
-            return rectangle.Left <= bounds.Left && rectangle.Top <= bounds.Top && rectangle.Right >= bounds.Right && rectangle.Bottom >= bounds.Bottom;
         }
         finally { if (previousContext != IntPtr.Zero) SetThreadDpiAwarenessContext(previousContext); }
     }
