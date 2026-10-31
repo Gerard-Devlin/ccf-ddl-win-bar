@@ -2,13 +2,7 @@ name: Build Windows island
 
 on:
   push:
-    paths:
-      - 'windows-island/**'
-      - '.github/workflows/build-island.yml'
   pull_request:
-    paths:
-      - 'windows-island/**'
-      - '.github/workflows/build-island.yml'
   workflow_dispatch:
 
 permissions:

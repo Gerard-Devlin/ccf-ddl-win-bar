@@ -47,7 +47,7 @@ dotnet run --project windows-island/CcfDeadlineIsland.csproj
 ```
 
 脚本优先使用仓库内 `.tools/dotnet/dotnet.exe`，其次使用 PATH 上的 SDK。NSIS 可通过
-`MAKENSIS` 指定，也会查找 PATH、Tauri 缓存和标准 NSIS 安装目录。构建不会启动应用或安装程序。
+`MAKENSIS` 指定，也会查找 PATH、本地 NSIS 缓存和标准 NSIS 安装目录。构建不会启动应用或安装程序。
 
 输出：
 

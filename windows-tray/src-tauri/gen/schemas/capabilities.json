@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"Local tray popover capability","local":true,"windows":["popover"],"permissions":["core:default"]}}

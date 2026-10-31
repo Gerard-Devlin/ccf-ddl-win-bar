@@ -3,3 +3,5 @@ windows-island/Upstream/DynamicWin/** -text -whitespace
 windows-island/DynamicWinHost/UpstreamSettingsControls.cs -text -whitespace
 windows-island/licenses/** -text -whitespace
 windows-island/LICENSE -text -whitespace
+LICENSE -text -whitespace
+docs/*.gif binary

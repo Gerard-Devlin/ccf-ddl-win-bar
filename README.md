@@ -1,191 +1,61 @@
 <div align="center">
 
-# CCF DDL Tray
+# CCF Deadline Island
 
-A lightweight Windows system-tray companion for tracking upcoming computer-science conference deadlines.
+在 Windows 桌面顶部查看 CCF 会议截止时间。
 
-[![Latest release](https://img.shields.io/github/v/release/Gerard-Devlin/ccf-ddl-win-bar?display_name=tag&sort=semver)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/latest)
-[![License](https://img.shields.io/github/license/Gerard-Devlin/ccf-ddl-win-bar)](LICENSE)
-![Windows 10 and 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows11&logoColor=white)
-![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
+![Windows 10 / 11](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4)
+![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)
+[![Build Windows island](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/actions/workflows/build-island.yml/badge.svg)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/actions/workflows/build-island.yml)
 
-[Download](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/latest) ·
-[Report a bug](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/issues/new) ·
-[CCF Deadlines](https://ccfddl.com/)
-
-<sub>Unofficial community extension. Conference data is provided by the upstream CCF Deadlines project.</sub>
+[下载 Windows x64 安装包 · 0.1.6](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/download/island-v0.1.6/CCF-Deadline-Island_0.1.6_x64-setup.exe) ·
+[发行记录](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/tag/island-v0.1.6) ·
+[反馈问题](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/issues/new)
 
 </div>
 
-![CCF Deadlines Tray showing upcoming conferences and deadline details](docs/preview.png)
+![CCF Deadline Island 操作演示](docs/demo.gif)
 
-## Overview
+## 功能
 
-CCF Deadlines Tray keeps the next conference deadlines one hover away. Hover the notification-area icon for a temporary preview, or left-click to pin and focus the panel. Click again, press Esc, or switch windows to close it. Launching the app again opens the existing instance.
+- **顶部灵动岛**：固定在主显示器顶部居中并持续置顶；悬停展开，点击固定，`Esc` 收起。
+- **会议与详情**：主界面显示最近三场会议，**All** 查看全部；点击会议查看摘要、投稿截止及本地／源时区时间，**Website** 打开官网。
+- **筛选与设置**：齿轮内按 CCF 等级、领域和时间范围筛选；仅投稿与开机启动使用右侧动画开关，选择即时保存。
+- **关注与颜色**：**Follow / Following** 关注或取消关注，状态会保存；关注会议的倒计时为绿色，未关注且 24 小时内截止时为红色。
+- **复制反馈**：**Copy** 复制截止时间；成功后短暂显示勾与 **Copied**，约 1.5 秒后恢复。
+- **缓存与刷新**：每十分钟刷新，支持镜像回退及离线缓存；刷新失败保留已有数据。按 `F5` 或使用托盘菜单手动刷新。
+- **Windows 集成**：`Ctrl+Alt+D` 展开／收起，`Tab`、空格和 `Enter` 操作控件；可为当前 Windows 用户开启登录启动。
 
-The application reads the dataset published by [CCF Deadlines](https://github.com/ccfddl/ccf-deadlines), converts deadline time zones locally, and caches the last successful response for offline use.
+## 安装
 
-## Highlights
+下载 [0.1.6 Windows x64 自包含安装包](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/download/island-v0.1.6/CCF-Deadline-Island_0.1.6_x64-setup.exe)。更新前先从托盘退出旧版，再运行安装程序。
 
-- **Hover preview and pinning** — preview quickly, or keep the panel open for mouse and keyboard interaction.
-- **Live countdowns** — remaining time updates every second.
-- **Complete deadline details** — inspect abstract, submission, cycle, source-time, and local-time information.
-- **Fast filtering** — filter by CCF, CORE, THCPL, and research area.
-- **Direct conference links** — select a conference to open its official website.
-- **Flexible display** — choose the date range, visible item count, and system, dark, or light appearance.
-- **Windows integration** — optional launch at startup, single-instance behavior, multi-monitor support, and taskbar-aware placement.
-- **Offline recovery** — preserve loaded data on refresh failure, restore the local cache on restart, and retry manually.
-- **No accounts or telemetry** — preferences remain on the current Windows account.
+支持 Windows 10 / 11 x64，自包含安装包**无需另装 .NET**。应用安装在 `%LOCALAPPDATA%\Programs\CCF Deadline Island`；开始菜单和托盘菜单均可打开。卸载保留 `%LOCALAPPDATA%\CCFDeadlineIsland` 下的偏好与缓存。
 
-## Install
+## 源码与构建
 
-### DynamicWin UI edition
-
-The independent [Windows Island project](windows-island) reuses DynamicWin's
-original SkiaSharp controls, Inter fonts, icons, layout, and spring animations,
-with CCF conference names and deadline countdowns replacing the widget content.
-Its UI source is the public `main` branch at `9f24d17`; DynamicWin's current `V2`
-branch hosts releases without source code.
-
-The tray application below remains available separately. See the island's
-[build and usage instructions](windows-island/README.md) for its standalone x64
-installer, preview, keyboard controls, data cache, and source attribution.
-
-### Installer
-
-1. Download the newest NSIS installer from [GitHub Releases](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/latest).
-2. Run the installer.
-3. Find **CCF Deadlines** in the Windows notification area. If Windows hides the icon, open the tray overflow menu and pin it.
-
-Community builds are currently unsigned, so Windows SmartScreen may ask for confirmation. The installer uses the current-user installation mode and does not require administrator access.
-
-### Requirements
-
-- Windows 10 or Windows 11
-- An internet connection for refreshing conference data
-- Microsoft Edge WebView2 Runtime
-
-WebView2 is included with current Windows installations. When it is missing, the installer can download the bootstrapper automatically.
-
-## Use
-
-1. Hover over the tray icon to show the deadline panel.
-2. Move the pointer into the panel to keep it open.
-   Left-click the tray icon or use **Pin** to keep it open after moving the pointer away.
-3. Hover over a conference row to see every upcoming deadline in both its source timezone and your local timezone.
-4. Select a conference to open its official website.
-5. Use **Filter** to narrow the list by ranking system or research area.
-6. Use **Display** to change the date range, item count, color mode, or startup behavior.
-7. Use **Refresh / Retry** in the footer to update immediately. Hover the status for the full error and last-update timestamp.
-8. Right-click the tray icon for **Show**, **Refresh**, or **Exit CCF Deadlines**.
-
-## Filters and display
-
-| Setting           | Available options                                                                                                     |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------- |
-| CCF Rank          | A, B, C, Non-CCF                                                                                                      |
-| CORE Rank         | A\*, A, B, C, Non-CORE                                                                                                |
-| THCPL Rank        | A, B, Non-THCPL                                                                                                       |
-| Research Area     | AI, databases, software engineering, security, graphics, systems, networks, theory, HCI, and interdisciplinary topics |
-| Deadline Range    | 30, 90, 180, or 365 days                                                                                              |
-| Items Shown       | 3, 4, 5, 10, 20, or 50                                                                                                |
-| Color Mode        | System, Dark, or Light                                                                                                |
-| Launch at Startup | On or Off                                                                                                             |
-
-Filter and display preferences are stored locally for the current Windows account.
-
-## Data and privacy
-
-The application downloads the combined conference dataset from:
-
-1. `https://ccfddl.com/conference/allconf.yml`
-2. `https://ccfddl.github.io/conference/allconf.yml` as a fallback
-
-Data is fetched when the application starts and refreshed every 10 minutes. Failed HTTP requests or YAML parsing fall back to the mirror. A failed refresh preserves the last successful data and timestamp. Countdown values are calculated locally; expired abstract deadlines advance to the next submission or cycle, and editions with no future deadline disappear.
-
-The application has no account system, analytics, advertising, or telemetry. It does not upload personal information. Selecting a conference only opens its official URL in the default browser.
-
-## Run from source
-
-Install the following development tools:
-
-- [Rust](https://www.rust-lang.org/tools/install) with the `x86_64-pc-windows-msvc` target
-- [Microsoft Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++**, MSVC, and a Windows SDK
-- Microsoft Edge WebView2 Runtime
-
-Clone the repository and run:
+项目源码位于 [windows-island](windows-island/)。开发需要 Windows 和 .NET 8 SDK；生成安装包还需要 NSIS 3。从仓库根目录运行：
 
 ```powershell
-git clone https://github.com/Gerard-Devlin/ccf-ddl-win-bar.git
-cd ccf-ddl-win-bar
-cargo run --manifest-path .\windows-tray\src-tauri\Cargo.toml
+# 启动开发版本
+dotnet run --project windows-island/CcfDeadlineIsland.csproj
+
+# 构建 Windows x64 自包含安装包
+./windows-island/Build.ps1
+
+# 数据、持久化及定位检查
+dotnet run --project windows-island/Tests/Island.Tests.csproj -c Release
+
+# 生产渲染器与输入检查，不打开可见桌面窗口
+dotnet 'windows-island/bin/Release/net8.0-windows/CCF Deadline Island.dll' --render-preview artifacts/ui-checks
 ```
 
-## Build and test
+安装包输出为 `artifacts/CCF-Deadline-Island_0.1.6_x64-setup.exe`。更多构建选项见 [项目说明](windows-island/README.md)，验收记录见 [QA-0.1.6](windows-island/docs/QA-0.1.6.md)。
 
-Install the Tauri CLI:
+## 数据、来源与许可
 
-```powershell
-cargo install tauri-cli --version "=2.11.4" --locked
-```
+会议数据来自 [CCF Deadlines](https://github.com/ccfddl/ccf-deadlines)。界面改编自 Florian Butz 的 [DynamicWin](https://github.com/FlorianButz/DynamicWin) 公开 `main` 源码，固定快照为 `9f24d176a16333b1cfda21dd3ed48087497194ed`，保留于 [Upstream/DynamicWin](windows-island/Upstream/DynamicWin/)。
 
-Run the Rust test suite:
+本项目沿用 **CC BY-SA 4.0**，完整文本见 [LICENSE](LICENSE)。[Inter](https://github.com/rsms/inter) 字体使用 [SIL Open Font License 1.1](windows-island/licenses/Inter-OFL.txt)；其他字体和依赖保留各自许可，详见 [NOTICE](NOTICE.md) 与 [完整第三方声明](windows-island/NOTICE.md)。
 
-```powershell
-cargo test --manifest-path .\windows-tray\src-tauri\Cargo.toml --locked
-```
-
-Build the NSIS installer:
-
-```powershell
-cd windows-tray
-cargo tauri build --bundles nsis --ci --no-sign -- --locked
-```
-
-The installer is generated under:
-
-```text
-windows-tray\src-tauri\target\release\bundle\nsis\
-```
-
-The [Windows build workflow](.github/workflows/build.yml) runs the same tests and installer build on every push and pull request. Successful runs publish the installer as a GitHub Actions artifact.
-
-## Project structure
-
-```text
-.
-|-- .github/
-|   `-- workflows/
-|       `-- build.yml       Windows test and installer workflow
-|-- docs/
-|   `-- preview.png         Project preview
-|-- windows-tray/
-|   |-- src-tauri/          Rust backend, tray integration, networking, and packaging
-|   `-- ui/                 HTML, CSS, and JavaScript for the popover interface
-|-- windows-island/         DynamicWin UI edition, conference data, and installer
-|-- LICENSE
-`-- README.md
-```
-
-This repository intentionally contains only the Windows tray extension. Website code, conference records, calendar feeds, and other extensions remain in the upstream [ccfddl/ccf-deadlines](https://github.com/ccfddl/ccf-deadlines) repository.
-
-## Contributing
-
-Issues and pull requests are welcome.
-
-- Report Windows tray bugs and interface requests in [this repository](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/issues).
-- Submit incorrect conference dates, rankings, or links to the [upstream CCF Deadlines repository](https://github.com/ccfddl/ccf-deadlines).
-- Keep pull requests focused and include screenshots for visible interface changes.
-- Run the Rust tests before submitting code changes.
-
-## Acknowledgements
-
-- [CCF Deadlines](https://github.com/ccfddl/ccf-deadlines) for the conference dataset and the original project.
-- [Tauri](https://tauri.app/) for the lightweight Windows desktop framework.
-
-## License
-
-The tray application is distributed under the [Apache License 2.0](LICENSE).
-The DynamicWin-derived island edition has its own
-[CC BY-SA 4.0 license](windows-island/LICENSE) and
-[third-party notices](windows-island/NOTICE.md).
+本项目是非官方社区工具，与 CCF、CCF Deadlines 或 DynamicWin 作者无隶属关系。
