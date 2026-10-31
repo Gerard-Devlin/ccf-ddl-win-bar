@@ -11,7 +11,7 @@ CCF conference deadlines in a compact desktop island for Windows.
 </div>
 
 <p align="center">
-  <img src="docs/demo.png" alt="CCF Deadline Island demonstration" width="1100">
+  <img src="docs/demo.gif" alt="CCF Deadline Island demonstration" width="800">
 </p>
 
 ## Features

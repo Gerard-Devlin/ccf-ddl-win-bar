@@ -5,3 +5,4 @@ windows-island/licenses/** -text -whitespace
 windows-island/LICENSE -text -whitespace
 LICENSE -text -whitespace
 docs/*.png binary
+docs/*.gif binary
