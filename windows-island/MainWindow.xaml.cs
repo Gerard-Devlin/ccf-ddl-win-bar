@@ -113,7 +113,7 @@ public partial class MainWindow : Window
         if (!IsLoaded || !Renderer.IsLoaded || _modalOpen || _contextMenuOpen || _dockPending) return false;
         var local = e.GetPosition(Renderer);
         var point = new DynamicWin.Utils.Vec2(local.X, local.Y);
-        if (!Renderer.MainIsland.GetRect().Contains(SKRect.Create((float)local.X, (float)local.Y, .01f, .01f))
+        if (!Renderer.ContainsVisibleShell(point)
             || (Renderer.ContentReady && Renderer.Input.HitTest(point) is not null)) return false;
         var screen = Renderer.PointToScreen(local);
         var island = Renderer.MainIsland.GetRect().Rect;

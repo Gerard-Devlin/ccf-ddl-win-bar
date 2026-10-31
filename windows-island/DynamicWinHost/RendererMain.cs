@@ -281,26 +281,42 @@ public sealed class RendererMain : SKElement, IDisposable
 
     private void DrawSideAttachment(SKCanvas canvas)
     {
-        if (Model.DockSide is not ("left" or "right")) return;
-        var compact = Menu.IslandSize();
-        var expanded = Menu.IslandSizeBig();
-        float widthRange = expanded.X - compact.X;
-        if (widthRange <= 0) return;
-        // Complete the edge-facing half of the rounded compact shell. As the
-        // island widens, fade this host-only fill back to the upstream round rect.
-        float amount = Math.Clamp((expanded.X - MainIsland.Size.X) / widthRange, 0, 1);
-        if (amount <= 1f / 255) return;
-        if (amount >= .995f) amount = 1;
-        var bounds = MainIsland.GetRect().Rect;
-        var attachedHalf = Model.DockSide == "left"
-            ? new SKRect(bounds.Left, bounds.Top, bounds.MidX, bounds.Bottom)
-            : new SKRect(bounds.MidX, bounds.Top, bounds.Right, bounds.Bottom);
+        if (!TryGetSideAttachment(out var attachedHalf, out float amount)) return;
         using var paint = new SKPaint
         {
             IsAntialias = Settings.AntiAliasing,
             Color = Theme.IslandBackground.Override(a: amount).Value()
         };
         canvas.DrawRect(attachedHalf, paint);
+    }
+
+    public bool ContainsVisibleShell(Vec2 point)
+    {
+        if (MainIsland.hidden) return false;
+        var sample = SKRect.Create(point.X, point.Y, .01f, .01f);
+        return MainIsland.GetRect().Contains(sample)
+            || (TryGetSideAttachment(out var attachedHalf, out _) && attachedHalf.Contains(sample));
+    }
+
+    private bool TryGetSideAttachment(out SKRect attachedHalf, out float amount)
+    {
+        attachedHalf = SKRect.Empty;
+        amount = 0;
+        if (MainIsland.hidden || Model.DockSide is not ("left" or "right")) return false;
+        var compact = Menu.IslandSize();
+        var expanded = Menu.IslandSizeBig();
+        float widthRange = expanded.X - compact.X;
+        if (widthRange <= 0) return false;
+        // Complete the edge-facing half of the rounded compact shell. As the
+        // island widens, fade this host-only fill back to the upstream round rect.
+        amount = Math.Clamp((expanded.X - MainIsland.Size.X) / widthRange, 0, 1);
+        if (amount <= 1f / 255) return false;
+        if (amount >= .995f) amount = 1;
+        var bounds = MainIsland.GetRect().Rect;
+        attachedHalf = Model.DockSide == "left"
+            ? new SKRect(bounds.Left, bounds.Top, bounds.MidX, bounds.Bottom)
+            : new SKRect(bounds.MidX, bounds.Top, bounds.Right, bounds.Bottom);
+        return true;
     }
 
     // Offscreen verification uses these same production objects, not a second UI implementation.

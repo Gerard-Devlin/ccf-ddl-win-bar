@@ -294,6 +294,12 @@ internal static class UiRegressionChecks
                 Check(menu.PortraitTitle == originalRows[1].Conference.Title && menu.PortraitPrimary.Contains(' ')
                     && menu.PortraitSecondary.Length == 0 && menu.SideRotationDegrees == (side == "left" ? -90 : 90),
                     side + " compact title and countdown share one rotated line");
+                float attachedX = side == "left" ? shell.Left + 1 : shell.Right - 1;
+                float roundedX = side == "left" ? shell.Right - 1 : shell.Left + 1;
+                Check(renderer.ContainsVisibleShell(new Vec2(attachedX, shell.Top + 1))
+                    && !renderer.ContainsVisibleShell(new Vec2(roundedX, shell.Top + 1))
+                    && !renderer.ContainsVisibleShell(new Vec2(shell.Right + 1, shell.Top + 1)),
+                    side + " flat edge corners can drag while transparent corners and outside points do not");
                 model.Preferences.FollowedConferenceIds.Add(originalRows[1].Id); menu.Update();
                 Check(menu.PortraitCountdownColor.Value() == ConferenceMenu.FollowColor.Value(), side + " portrait keeps followed green");
                 model.Preferences.FollowedConferenceIds.Clear();
@@ -305,6 +311,10 @@ internal static class UiRegressionChecks
                 renderer.EndDockDrag(cancelled: false); renderer.Settle(true);
                 Check(renderer.ContentReady && menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 114,
                     side + " expands to a normal upright one-row panel");
+                var expandedShell = renderer.MainIsland.GetRect().Rect;
+                Check(!renderer.ContainsVisibleShell(new Vec2(expandedShell.Left + 1, expandedShell.Top + 1))
+                    && !renderer.ContainsVisibleShell(new Vec2(expandedShell.Right - 1, expandedShell.Top + 1)),
+                    side + " expanded panel restores both rounded corners for dragging");
                 Click("nav.settings");
                 Check(!renderer.ContentReady, "height transition cannot accept controls before expanded layout is ready");
                 renderer.Settle(true); Check(renderer.ContentReady, "expanded settings becomes ready after both axes settle");

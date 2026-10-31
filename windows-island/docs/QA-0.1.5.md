@@ -34,7 +34,7 @@ Verification on the final edge-strip and mark-free filter layout:
 
 - 293 data, persistence and pure placement checks passed, including compact and
   expanded dimensions at multiple DPI scales and saved dock restoration.
-- 151 production UI checks passed through routed WPF pointer events and the shared
+- 155 production UI checks passed through routed WPF pointer events and the shared
   keyboard input path.
 - 9 native topmost and 18 native docking checks passed using owned hidden HWNDs;
   they check physical edge/center alignment and expansion/contraction placement.
@@ -42,6 +42,8 @@ Verification on the final edge-strip and mark-free filter layout:
 
 The routed checks activate switch labels and the right-hand track, check keyboard
 activation, and verify intermediate animation states without shifting hit areas.
+Visible flat edge corners remain draggable; transparent corners remain excluded,
+and expanded panels restore the original rounded hit geometry.
 
 Preview images use the production renderer with sample conference data and a
 composited solid background. Side examples are rendered at 150% scale. They are not
