@@ -24,6 +24,8 @@ public sealed class RendererMain : SKElement, IDisposable
     {
         get
         {
+            if (Instance._updatingIsland && Instance.IsDockDragging)
+                return Instance._dragExpanded ? new Vec2(ScreenDimensions.X / 2, 20) : new Vec2(-1000, -1000);
             if (Instance._updatingIsland && Instance.ForceExpanded) return new Vec2(ScreenDimensions.X / 2, 20);
             if (Instance._updatingIsland && Instance.ForceCollapsed) return new Vec2(-1000, -1000);
             if (Instance.Input?.PointerPosition is { } point) return new Vec2(point.X, point.Y);
@@ -35,6 +37,7 @@ public sealed class RendererMain : SKElement, IDisposable
     public ConferenceMenu Menu { get; }
     public ConferenceModel Model { get; }
     public InputController Input { get; }
+    public bool ContentReady => MainIsland.IsHovering && Math.Abs(MainIsland.Size.X - Menu.IslandSizeBig().X) < .5f;
     public float alphaOverride = 1f;
     public float blurOverride;
     public float DeltaTime { get; private set; } = 1f / 60;
@@ -59,6 +62,11 @@ public sealed class RendererMain : SKElement, IDisposable
     public int RoutedPointerDownCount { get; private set; }
     public int RoutedPointerUpCount { get; private set; }
     public Action? ExpansionChanged;
+    public event Action? GeometryChanged;
+    public bool IsDockDragging { get; private set; }
+    private bool _dragExpanded;
+    private bool _dragWasPinned, _dragWasDismissed;
+    private SKRect _lastGeometry;
     private bool _lastExpanded;
 
     public RendererMain(ConferenceModel model)
@@ -99,8 +107,7 @@ public sealed class RendererMain : SKElement, IDisposable
         ForceCollapsed = false;
         // A click opening the compact island must not hit a navigation control
         // that is moving under the pointer during the expansion spring.
-        bool contentReady = MainIsland.IsHovering && Math.Abs(MainIsland.Size.X - Menu.IslandSizeBig().X) < .5f;
-        bool accepted = contentReady && Input.PointerDown(LocalPoint(e));
+        bool accepted = ContentReady && Input.PointerDown(LocalPoint(e));
         if (accepted && _injectedPointer is null && IsLoaded)
         {
             Focus();
@@ -125,6 +132,26 @@ public sealed class RendererMain : SKElement, IDisposable
     }
 
     public void CancelInput() => Input.CancelAll();
+
+    // Keep the drag surface steady while mouse capture takes the pointer away
+    // from the normal hover region. Geometry still uses the upstream spring.
+    public void BeginDockDrag()
+    {
+        if (IsDockDragging) return;
+        _dragWasPinned = ForceExpanded;
+        _dragWasDismissed = ForceCollapsed;
+        _dragExpanded = ForceExpanded || MainIsland.Size.Y > (Menu.IslandSize().Y + Menu.IslandSizeBig().Y) / 2;
+        IsDockDragging = true;
+        Input.CancelAll();
+    }
+
+    public void EndDockDrag(bool cancelled)
+    {
+        if (!IsDockDragging) return;
+        IsDockDragging = false;
+        ForceExpanded = cancelled ? _dragWasPinned : _dragExpanded;
+        ForceCollapsed = cancelled ? _dragWasDismissed : !_dragExpanded;
+    }
 
     // The test position is scoped to this routed event; native events always use GetPosition.
     public bool RoutePointerDown(float x, float y)
@@ -171,13 +198,23 @@ public sealed class RendererMain : SKElement, IDisposable
             var native = Mouse.GetPosition(this);
             pointer = new Vec2(native.X, native.Y);
         }
-        TryReleaseDismissal(pointer);
+        if (!IsDockDragging) TryReleaseDismissal(pointer);
         if (_lastExpanded != MainIsland.IsHovering)
         {
             _lastExpanded = MainIsland.IsHovering;
             ExpansionChanged?.Invoke();
         }
+        NotifyGeometryChanged();
         InvalidateVisual();
+    }
+
+    private void NotifyGeometryChanged()
+    {
+        var current = MainIsland.GetRect().Rect;
+        if (Math.Abs(current.Left - _lastGeometry.Left) < .01f && Math.Abs(current.Top - _lastGeometry.Top) < .01f
+            && Math.Abs(current.Right - _lastGeometry.Right) < .01f && Math.Abs(current.Bottom - _lastGeometry.Bottom) < .01f) return;
+        _lastGeometry = current;
+        GeometryChanged?.Invoke();
     }
 
     public bool TryReleaseDismissal(Vec2 pointer)
@@ -241,6 +278,7 @@ public sealed class RendererMain : SKElement, IDisposable
             Menu.Update();
             foreach (var element in Menu.UiObjects.ToArray()) element.UpdateCall(DeltaTime);
             Input.Validate();
+            NotifyGeometryChanged();
         }
     }
 

@@ -88,6 +88,20 @@ public static class WindowPlacement
         return state!;
     }
 
+    internal static bool ApplyPhysicalPosition(Window window, PixelPosition position)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == IntPtr.Zero) return false;
+        var previousContext = SetThreadDpiAwarenessContext(PerMonitorV2);
+        try
+        {
+            const uint noSize = 0x0001, noZOrder = 0x0004, noActivate = 0x0010, noOwnerZOrder = 0x0200;
+            return SetWindowPos(handle, IntPtr.Zero, position.X, position.Y, 0, 0,
+                noSize | noZOrder | noActivate | noOwnerZOrder);
+        }
+        finally { if (previousContext != IntPtr.Zero) SetThreadDpiAwarenessContext(previousContext); }
+    }
+
     private static bool TryPrimaryMonitor(out MonitorInfo information)
     {
         MonitorInfo selected = default;

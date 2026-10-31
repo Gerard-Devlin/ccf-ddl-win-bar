@@ -71,6 +71,10 @@ try
     Check(!blocked.SaveCache(snapshot), "Storage failure is nonfatal");
     preferences.Save(Path.Combine(temp, "prefs.json"));
     Check(Preferences.Load(Path.Combine(temp, "prefs.json")).WithinDays == preferences.WithinDays, "Preferences round trip");
+    preferences.DockSide = "right"; preferences.DockPosition = .73;
+    preferences.Save(Path.Combine(temp, "dock-prefs.json"));
+    var dockPreferences = Preferences.Load(Path.Combine(temp, "dock-prefs.json"));
+    Check(dockPreferences.DockSide == "right" && dockPreferences.DockPosition == .73, "Dock edge and vertical position survive restart");
     var handler = new FixtureHandler("not: [yaml", yaml);
     using var network = new DeadlineService(Path.Combine(temp, "network.json"), new HttpClient(handler));
     var fetched = await network.FetchAsync(["https://primary.test/data", "https://mirror.test/data"]);
@@ -98,6 +102,7 @@ Check(cycleUids.Count == 2 && cycleUids.Distinct(StringComparer.Ordinal).Count()
 var punctuationUrl = editions[0] with { Website = "https://example.com/track;round?areas=ai,db" };
 Check(CalendarExport.Create(punctuationUrl, now).Contains("URL:https://example.com/track;round?areas=ai,db\r\n"), "Calendar preserves URI punctuation in URL properties");
 PlacementChecks.Run(Check);
+DockingChecks.Run(Check);
 if (args.Contains("--live", StringComparer.Ordinal))
 {
     using var live = new DeadlineService(Path.Combine(Path.GetTempPath(), "CcfIslandLiveCheck.json"));

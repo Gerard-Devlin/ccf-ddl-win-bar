@@ -20,6 +20,8 @@ internal static class UiRegressionChecks
         var originalRows = model.Rows;
         var originalPreferences = model.Preferences;
         var originalSave = model.SavePreferences;
+        var originalStartupAction = model.SetLaunchAtStartup;
+        bool originalStartup = model.LaunchAtStartup;
         int originalSelection = model.SelectedIndex;
         string originalSelectedId = model.SelectedConferenceId;
         var conferences = originalRows.Select(row => row.Conference).ToArray();
@@ -55,6 +57,7 @@ internal static class UiRegressionChecks
         {
             model.Preferences = new Preferences();
             model.Rows = model.Preferences.Visible(conferences, DateTimeOffset.UtcNow);
+            model.SetLaunchAtStartup = enabled => model.LaunchAtStartup = enabled;
             model.SavePreferences = () =>
             {
                 saves++;
@@ -65,8 +68,9 @@ internal static class UiRegressionChecks
             Page("widgets");
             Check(menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 218, "three-conference layout is 320x218 DIP");
             Check(!menu.UiObjects.Any(item => item.GetType().Name == "DWImageButton"), "no music transport controls");
-            Click("nav.filters"); renderer.Settle(true);
-            Check(menu.Page == "filters" && menu.IslandSizeBig().Y == 380, "filters include research areas within the shell");
+            Check(!menu.Controls.ContainsKey("nav.filters") && !menu.Controls.ContainsKey("display.animations"), "settings replaces filter navigation and animation controls");
+            Click("nav.settings"); renderer.Settle(true);
+            Check(menu.Page == "settings" && menu.IslandSizeBig().Y == 432, "gear opens unified filters and startup settings");
             var rank = (ConferenceMenu.ToggleButton)Control("filters.rank.A");
             int beforeDowns = renderer.RoutedPointerDownCount, beforeUps = renderer.RoutedPointerUpCount;
             int beforeSaves = saves;
@@ -91,9 +95,9 @@ internal static class UiRegressionChecks
             Check(renderer.Input.CapturedTarget is null && !renderer.RoutePointerUp(rankPoint.X, rankPoint.Y), "disappearing control cancels capture immediately");
             menu.Update(); renderer.Settle(true);
             renderer.RoutePointerDown(rankPoint.X, rankPoint.Y);
-            menu.ShowPage("display");
+            menu.ShowPage("widgets");
             Check(renderer.Input.CapturedTarget is null && !renderer.RoutePointerUp(rankPoint.X, rankPoint.Y), "page switch cancels capture");
-            Page("filters");
+            Page("settings");
             rankPoint = Center("filters.rank.A"); renderer.RoutePointerDown(rankPoint.X, rankPoint.Y);
             renderer.CancelInput();
             Check(renderer.Input.CapturedTarget is null && !renderer.RoutePointerUp(rankPoint.X, rankPoint.Y), "deactivation input cancellation prevents activation");
@@ -127,10 +131,24 @@ internal static class UiRegressionChecks
             Check(Preferences.Load(settings).Categories.SequenceEqual(new[] { "AI" }), "research area selection survives preference reload");
             Click("filters.area.all");
             Check(model.Preferences.Categories.Count == Preferences.Areas.Count && model.Rows.Count == conferences.Length, "all research areas restores conferences");
-            Page("display");
-            Click("display.animations");
-            Check(model.Preferences.ReducedMotion && Preferences.Load(settings).ReducedMotion, "animation preference has separate display page and persists");
-            Click("display.animations");
+            var startupToggle = (ConferenceMenu.ToggleButton)Control("settings.startup");
+            var startupBounds = startupToggle.GetInputRect().Rect;
+            Click("settings.startup");
+            Check(model.LaunchAtStartup, "startup control calls the startup registration action");
+            startupToggle.Update(1f / 60);
+            Check(startupToggle.VisualScale < 1 && startupToggle.GetInputRect().Rect == startupBounds,
+                "quick settings clicks animate without moving their hit area");
+            Check(startupToggle.SelectionAmount > 0 && startupToggle.SelectionAmount < 1,
+                "settings selection animates through intermediate states");
+            renderer.Settle(true);
+            Check(startupToggle.SelectionAmount > .999f && startupToggle.VisualScale > .99f,
+                "settings press and selection animations settle");
+            Click("settings.startup");
+            Check(!model.LaunchAtStartup && DynamicWin.Main.Settings.AllowAnimation, "startup can be disabled while animation remains enabled");
+            Check(ConferenceMenu.IsUrgent(TimeSpan.FromHours(24)) && !ConferenceMenu.IsUrgent(TimeSpan.FromHours(24) + TimeSpan.FromMilliseconds(1))
+                && !ConferenceMenu.IsUrgent(TimeSpan.Zero), "urgent countdown threshold is positive and at most twenty-four hours");
+            Check(ConferenceMenu.CountdownColor(TimeSpan.FromHours(18), Theme.TextMain).Value() == Theme.Error.Value()
+                && ConferenceMenu.CountdownColor(TimeSpan.FromDays(2), Theme.TextMain).Value() == Theme.TextMain.Value(), "only imminent countdowns use red");
 
             Page("widgets");
             string selectedId = ((ConferenceMenu.ConferenceRow)Control("upcoming.row.1")).BoundId;
@@ -217,7 +235,7 @@ internal static class UiRegressionChecks
                 "Esc dismissal stays active while the cursor is over the compact island");
             Check(renderer.TryReleaseDismissal(new Vec2(350, 120)) && !renderer.ForceCollapsed,
                 "hover can resume after contraction completes and the cursor leaves");
-            foreach (string centeredPage in new[] { "widgets", "filters", "compact" })
+            foreach (string centeredPage in new[] { "widgets", "settings", "compact" })
             {
                 menu.ShowPage(centeredPage == "compact" ? "widgets" : centeredPage);
                 renderer.Settle(centeredPage != "compact");
@@ -232,6 +250,7 @@ internal static class UiRegressionChecks
         {
             renderer.Input.CancelAll();
             model.Rows = originalRows; model.Preferences = originalPreferences; model.SavePreferences = originalSave;
+            model.LaunchAtStartup = originalStartup; model.SetLaunchAtStartup = originalStartupAction;
             model.SelectedIndex = originalSelection;
             model.SelectedConferenceId = originalSelectedId;
             menu.ShowPage("widgets"); renderer.Settle(true);

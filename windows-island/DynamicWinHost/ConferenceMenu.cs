@@ -33,6 +33,8 @@ public sealed class ConferenceModel
     public Preferences Preferences { get; set; } = new();
     public string Status { get; set; } = "Loading...";
     public bool Loading { get; set; }
+    public bool LaunchAtStartup { get; set; }
+    public Action<bool>? SetLaunchAtStartup { get; set; }
     public Action? Refresh, OpenWebsite, ExportCalendar, CopyTime, SavePreferences, TogglePin;
 }
 
@@ -52,7 +54,7 @@ public sealed class ConferenceMenu : IIslandMenu
     private readonly Dictionary<string, ToggleButton> _areas = new();
     private readonly Dictionary<int, ToggleButton> _ranges = new();
     private readonly ToggleButton _submission;
-    private readonly ToggleButton _animations;
+    private readonly ToggleButton _startup;
     private readonly Label _empty;
     private readonly Label _detailTitle;
     private readonly DeadlinePanel[] _detailPanels = new DeadlinePanel[2];
@@ -79,7 +81,7 @@ public sealed class ConferenceMenu : IIslandMenu
     {
         _island = island;
         _model = model;
-        foreach (string page in new[] { "widgets", "list", "details", "filters", "display" }) _pages[page] = new();
+        foreach (string page in new[] { "widgets", "list", "details", "settings" }) _pages[page] = new();
         _compactContainer = new UIObject(island, Vec2.zero, IslandSize() - 35, UIAlignment.Center) { Color = Col.Transparent };
         _compactTitle = new DWText(_compactContainer, "CCF", Vec2.zero, UIAlignment.MiddleLeft)
             { Anchor = new Vec2(0, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextMain };
@@ -89,9 +91,8 @@ public sealed class ConferenceMenu : IIslandMenu
 
         Nav("nav.upcoming", "Upcoming", 14, 84, () => ShowPage("widgets"));
         Nav("nav.all", "All", 102, 40, () => ShowPage("list"));
-        Nav("nav.filters", "Filter", 202, 54, () => ShowPage("filters"));
-        var display = Button("nav.display", "", 272, 14, 28, 26, () => ShowPage("display"));
-        display.Icon = Res.Settings; display.ActionName = "Display settings"; _navigation.Add(display);
+        var settings = Button("nav.settings", "", 272, 14, 28, 26, () => ShowPage("settings"));
+        settings.Icon = Res.Settings; settings.ActionName = "Settings"; _navigation.Add(settings);
 
         for (int slot = 0; slot < 3; slot++)
         {
@@ -111,7 +112,7 @@ public sealed class ConferenceMenu : IIslandMenu
         });
         _emptyAction.LeadingGlyph = ButtonGlyph.Reset;
 
-        AddLabel("filters", "CCF rank", 16, 50, 288, 18, 11, Theme.TextSecond);
+        AddLabel("settings", "CCF rank", 16, 50, 288, 18, 11, Theme.TextSecond);
         for (int index = 0; index < Preferences.CcfValues.Length; index++)
         {
             string rank = Preferences.CcfValues[index];
@@ -121,12 +122,12 @@ public sealed class ConferenceMenu : IIslandMenu
                 else _model.Preferences.Ccf.Add(rank);
                 SaveAndRefresh();
             });
-            chip.FontSize = rank == "N" ? 9.5f : 11; Register("filters.rank." + rank, chip, "filters"); _ranks[rank] = chip;
+            chip.FontSize = rank == "N" ? 9 : 11; Register("filters.rank." + rank, chip, "settings"); _ranks[rank] = chip;
         }
-        AddLabel("filters", "Research area", 16, 114, 180, 18, 11, Theme.TextSecond);
-        AddPageButton("filters", "filters.area.all", "All", 215, 110, 35, 24, () =>
+        AddLabel("settings", "Research area", 16, 114, 180, 18, 11, Theme.TextSecond);
+        AddPageButton("settings", "filters.area.all", "All", 215, 110, 35, 24, () =>
         { _model.Preferences.Categories = new(Preferences.Areas.Keys); SaveAndRefresh(); }).FontSize = 10;
-        AddPageButton("filters", "filters.area.clear", "Clear", 260, 110, 44, 24, () =>
+        AddPageButton("settings", "filters.area.clear", "Clear", 260, 110, 44, 24, () =>
         { _model.Preferences.Categories.Clear(); SaveAndRefresh(); }).FontSize = 10;
         string[] areas = { "AI", "DB", "SE", "SC", "CG", "DS", "NW", "CT", "HI", "MX" };
         for (int index = 0; index < areas.Length; index++)
@@ -138,28 +139,25 @@ public sealed class ConferenceMenu : IIslandMenu
                 else _model.Preferences.Categories.Add(area);
                 SaveAndRefresh();
             }) { FontSize = 11 };
-            Register("filters.area." + area, chip, "filters"); _areas[area] = chip;
+            Register("filters.area." + area, chip, "settings"); _areas[area] = chip;
         }
-        AddLabel("filters", "Deadline range", 16, 210, 288, 18, 11, Theme.TextSecond);
+        AddLabel("settings", "Deadline range", 16, 210, 288, 18, 11, Theme.TextSecond);
         int[] days = { 30, 90, 180, 365 };
         for (int index = 0; index < days.Length; index++)
         {
             int range = days[index];
             var chip = new ToggleButton(island, range + " days", 16 + index * 74, 233, 66, 30, () =>
             { _model.Preferences.WithinDays = range; SaveAndRefresh(); });
-            chip.FontSize = 10; Register("filters.range." + range, chip, "filters"); _ranges[range] = chip;
+            chip.FontSize = 9.5f; Register("filters.range." + range, chip, "settings"); _ranges[range] = chip;
         }
         _submission = new ToggleButton(island, "Submission deadlines only", 16, 280, 288, 36, () =>
         { _model.Preferences.SubmissionOnly = !_model.Preferences.SubmissionOnly; SaveAndRefresh(); }) { FullRow = true, FontSize = 12 };
-        Register("filters.submission", _submission, "filters");
-        AddPageButton("filters", "filters.reset", "Reset filters", 16, 336, 114, 28, ResetFilters).LeadingGlyph = ButtonGlyph.Reset;
-        AddPageButton("filters", "filters.done", "Done", 236, 336, 68, 28, () => ShowPage(_returnPage));
-
-        AddLabel("display", "Display", 16, 51, 288, 23, 15, Theme.TextMain, bold: true);
-        _animations = new ToggleButton(island, "Animations", 16, 83, 288, 36, () =>
-        { _model.Preferences.ReducedMotion = !_model.Preferences.ReducedMotion; SaveAndRefresh(); }) { FullRow = true, FontSize = 12 };
-        Register("display.animations", _animations, "display");
-        AddPageButton("display", "display.done", "Done", 236, 136, 68, 28, () => ShowPage(_returnPage));
+        Register("filters.submission", _submission, "settings");
+        _startup = new ToggleButton(island, "Launch at startup", 16, 322, 288, 36, () =>
+        { _model.SetLaunchAtStartup?.Invoke(!_model.LaunchAtStartup); Update(); }) { FullRow = true, FontSize = 12 };
+        Register("settings.startup", _startup, "settings");
+        AddPageButton("settings", "filters.reset", "Reset filters", 16, 388, 114, 28, ResetFilters).LeadingGlyph = ButtonGlyph.Reset;
+        AddPageButton("settings", "filters.done", "Done", 236, 388, 68, 28, () => ShowPage(_returnPage));
 
         AddPageButton("details", "details.back", "Back", 16, 50, 60, 25, () => ShowPage(_detailsReturnPage)).LeadingGlyph = ButtonGlyph.Back;
         _detailTitle = AddLabel("details", "", 84, 50, 220, 25, 14, Theme.TextMain, bold: true);
@@ -189,7 +187,7 @@ public sealed class ConferenceMenu : IIslandMenu
     }
     public Vec2 IslandSizeBig() => new(320, Page switch
     {
-        "filters" => 380, "display" => 180,
+        "settings" => 432,
         "list" => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(5, _model.Rows.Count),
         "details" => _detailTotal > 2 ? 352 : 311,
         _ => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(3, _model.Rows.Count)
@@ -198,11 +196,11 @@ public sealed class ConferenceMenu : IIslandMenu
 
     public void ShowPage(string page)
     {
-        page = page switch { "upcoming" => "widgets", "settings" => "filters", _ => page };
+        page = page switch { "upcoming" => "widgets", "filters" or "display" => "settings", _ => page };
         if (!_pages.ContainsKey(page)) page = "widgets";
         if (page == "details" && Selected is null) page = "widgets";
         if (Page == page) { Update(); return; }
-        if (page is "filters" or "display") _returnPage = Page is "widgets" or "list" or "details" ? Page : _returnPage;
+        if (page == "settings") _returnPage = Page is "widgets" or "list" or "details" ? Page : _returnPage;
         string selectedId = Selected?.Id ?? "";
         Page = page;
         if (page == "details") { _selectedId = selectedId; _detailOffset = 0; }
@@ -236,14 +234,14 @@ public sealed class ConferenceMenu : IIslandMenu
         _compactContainer.Size = IslandSize() - 35;
         _compactTitle.SilentSetText(next is null ? "CCF" : DWText.Truncate(next.Conference.Title, 12));
         _compactCountdown.SilentSetText(next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow));
+        _compactCountdown.Color = next is null ? Theme.TextSecond : CountdownColor(next.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextSecond);
         _compactTitle.SetActive(!expanded); _compactCountdown.SetActive(!expanded);
         foreach (var group in _pages)
             foreach (var item in group.Value) item.SetActive(expanded && group.Key == Page);
         foreach (var item in _navigation) item.SetActive(expanded);
         _buttons["nav.upcoming"].IsSelected = Page == "widgets";
         _buttons["nav.all"].IsSelected = Page == "list";
-        _buttons["nav.filters"].IsSelected = Page == "filters";
-        _buttons["nav.display"].IsSelected = Page == "display";
+        _buttons["nav.settings"].IsSelected = Page == "settings";
         for (int i = 0; i < 3; i++)
         {
             _upcomingRows[i].Bind(_model.Rows.ElementAtOrDefault(i));
@@ -259,7 +257,7 @@ public sealed class ConferenceMenu : IIslandMenu
         foreach (var pair in _areas) pair.Value.IsSelected = _model.Preferences.Categories.Contains(pair.Key);
         foreach (var pair in _ranges) pair.Value.IsSelected = _model.Preferences.WithinDays == pair.Key;
         _submission.IsSelected = _model.Preferences.SubmissionOnly;
-        _animations.IsSelected = !_model.Preferences.ReducedMotion;
+        _startup.IsSelected = _model.LaunchAtStartup;
         bool listPage = Page is "widgets" or "list";
         bool empty = _model.Rows.Count == 0;
         _empty.SetActive(expanded && listPage && empty);
@@ -325,6 +323,9 @@ public sealed class ConferenceMenu : IIslandMenu
         SaveAndRefresh();
     }
     private void SaveAndRefresh() { _model.SavePreferences?.Invoke(); Update(); }
+    public static bool IsUrgent(TimeSpan remaining) => remaining > TimeSpan.Zero && remaining <= TimeSpan.FromDays(1);
+    public static Col CountdownColor(TimeSpan remaining, Col normal) => IsUrgent(remaining) ? Theme.Error : normal;
+
     public static string Remaining(TimeSpan remaining)
     {
         if (remaining <= TimeSpan.Zero) return "Expired";
@@ -360,6 +361,10 @@ public sealed class ConferenceMenu : IIslandMenu
         public bool IsSelected { get; set; }
         public SKBitmap? Icon { get; set; }
         public ButtonGlyph LeadingGlyph { get; set; }
+        public float VisualScale { get; private set; } = 1;
+        public float SelectionAmount { get; private set; }
+        private float _visualVelocity;
+        private float _releasePulse;
         public MenuButton(IslandObject island, string text, float x, float y, float width, float height, Action action)
             : base(island, new Vec2(x, y), new Vec2(width, height), action, UIAlignment.TopLeft)
         {
@@ -367,14 +372,60 @@ public sealed class ConferenceMenu : IIslandMenu
             roundRadius = 8; normalScaleMulti = hoverScaleMulti = clickScaleMulti = Vec2.one;
             normalColor = Col.Transparent; hoverColor = Col.White.Override(a: 0.08f); clickColor = Col.White.Override(a: 0.14f);
         }
-        public override void Update(float deltaTime)
+        protected virtual void ConfigureColors()
         {
             normalColor = IsSelected ? Col.White.Override(a: 0.075f) : Col.Transparent;
             hoverColor = IsSelected ? Col.White.Override(a: 0.12f) : Col.White.Override(a: 0.08f);
-            base.Update(deltaTime);
+            clickColor = Col.White.Override(a: 0.14f);
+        }
+        public override void Update(float deltaTime)
+        {
+            float dt = Math.Clamp(deltaTime, 0, .05f);
+            SelectionAmount += ((IsSelected ? 1 : 0) - SelectionAmount) * (1 - (float)Math.Exp(-24 * dt));
+            _releasePulse = Math.Max(0, _releasePulse - dt);
+            float target = IsMouseDown || _releasePulse > .075f ? .965f : IsHovering ? 1.01f : 1;
+            // Draw-only spring: the native hit area and capture identity never move.
+            int steps = Math.Max(1, (int)Math.Ceiling(dt * 120));
+            float step = dt / steps;
+            for (int i = 0; i < steps; i++)
+            {
+                _visualVelocity += ((target - VisualScale) * 420 - _visualVelocity * 28) * step;
+                VisualScale += _visualVelocity * step;
+            }
+            ConfigureColors();
+            base.Update(dt);
+        }
+        public override void OnMouseDown()
+        {
+            _releasePulse = 0; _visualVelocity = 0; VisualScale = .965f;
+            base.OnMouseDown();
+        }
+        public override void OnMouseUp()
+        {
+            // Preserve visible feedback even when down/up arrive between two frames.
+            _releasePulse = .12f; _visualVelocity = 0; VisualScale = Math.Min(VisualScale, .965f);
+            base.OnMouseUp();
+        }
+        protected void ResetVisualFeedback()
+        {
+            _releasePulse = 0; _visualVelocity = 0; VisualScale = 1;
+        }
+        protected VisualDrawing BeginVisualDrawing(SKCanvas canvas) => new(canvas, Position, Size, VisualScale);
+        protected readonly struct VisualDrawing : IDisposable
+        {
+            private readonly SKCanvas _canvas;
+            private readonly int _saved;
+            public VisualDrawing(SKCanvas canvas, Vec2 position, Vec2 size, float scale)
+            {
+                _canvas = canvas; _saved = canvas.Save();
+                float x = position.X + size.X / 2, y = position.Y + size.Y / 2;
+                canvas.Translate(x, y); canvas.Scale(scale); canvas.Translate(-x, -y);
+            }
+            public void Dispose() => _canvas.RestoreToCount(_saved);
         }
         public override void Draw(SKCanvas canvas)
         {
+            using var visual = BeginVisualDrawing(canvas);
             using var background = GetPaint(); background.Color = Color.Value(); canvas.DrawRoundRect(GetRect(), background);
             var foreground = GetColor(AcceptsInput ? Theme.TextSecond : Theme.TextThird);
             if (Icon is not null)
@@ -445,33 +496,52 @@ public sealed class ConferenceMenu : IIslandMenu
     {
         public bool FullRow { get; set; }
         public ToggleButton(IslandObject island, string text, float x, float y, float width, float height, Action action) : base(island, text, x, y, width, height, action) { }
-        public override void Update(float deltaTime)
+        protected override void ConfigureColors()
         {
-            base.Update(deltaTime);
             normalColor = IsSelected ? Theme.Primary.Override(a: 0.34f) : Theme.WidgetBackground;
             hoverColor = IsSelected ? Theme.Primary.Override(a: 0.48f) : Col.White.Override(a: 0.12f);
             clickColor = IsSelected ? Theme.Primary.Override(a: 0.58f) : Col.White.Override(a: 0.18f);
         }
         public override void Draw(SKCanvas canvas)
         {
-            using var background = GetPaint(); background.Color = GetColor(IsHovering ? hoverColor : normalColor).Value(); canvas.DrawRoundRect(GetRect(), background);
-            float checkX = Position.X + (FullRow ? 14 : 9);
-            if (FullRow || IsSelected)
+            using var visual = BeginVisualDrawing(canvas);
+            using var background = GetPaint(); background.Color = Color.Value(); canvas.DrawRoundRect(GetRect(), background);
+            var foreground = GetColor(Col.Lerp(Theme.TextSecond, Theme.TextMain, SelectionAmount));
+            if (!FullRow)
             {
-                if (FullRow)
+                const float checkWidth = 8, checkGap = 6;
+                float indicatorWidth = (checkWidth + checkGap) * SelectionAmount;
+                using var measure = new SKPaint { Typeface = Res.InterRegular, TextSize = FontSize };
+                string label = Fit(Text, measure, Size.X - 8 - checkWidth - checkGap);
+                float groupWidth = indicatorWidth + measure.MeasureText(label);
+                float left = Position.X + (Size.X - groupWidth) / 2;
+                float textX = left + indicatorWidth;
+                float tickWidth = Math.Clamp(indicatorWidth - checkGap, 0, checkWidth);
+                if (tickWidth > .001f)
                 {
-                    using var box = GetPaint(); box.Color = GetColor(IsSelected ? Theme.Primary : Theme.TextThird).Value(); box.IsStroke = !IsSelected; box.StrokeWidth = 1;
-                    canvas.DrawRoundRect(SKRect.Create(checkX - 2, Position.Y + (Size.Y - 16) / 2, 16, 16), 4, 4, box);
-                }
-                if (IsSelected)
-                {
-                    using var tick = GetPaint(); tick.Color = GetColor(Theme.TextMain).Value(); tick.IsStroke = true; tick.StrokeWidth = 1.5f; tick.StrokeCap = SKStrokeCap.Round;
+                    int saved = canvas.Save(); canvas.ClipRect(GetRect().Rect);
+                    using var tick = GetPaint(); tick.Color = GetColor(Theme.TextMain.Override(a: SelectionAmount)).Value(); tick.IsStroke = true; tick.StrokeWidth = 1.5f; tick.StrokeCap = SKStrokeCap.Round;
                     float cy = Position.Y + Size.Y / 2; using var path = new SKPath();
-                    path.MoveTo(checkX + (FullRow ? 2 : -1), cy); path.LineTo(checkX + (FullRow ? 5 : 2), cy + 3); path.LineTo(checkX + (FullRow ? 10 : 7), cy - 3); canvas.DrawPath(path, tick);
+                    float tickScale = tickWidth / checkWidth;
+                    path.MoveTo(left, cy); path.LineTo(left + 3 * tickScale, cy + 3 * tickScale);
+                    path.LineTo(left + tickWidth, cy - 3 * tickScale); canvas.DrawPath(path, tick);
+                    canvas.RestoreToCount(saved);
                 }
+                DrawText(canvas, label, textX, Position.Y + Size.Y / 2, FontSize, foreground, middle: true);
+                return;
             }
-            if (FullRow) DrawText(canvas, Text, Position.X + 40, Position.Y + Size.Y / 2, FontSize, GetColor(IsSelected ? Theme.TextMain : Theme.TextSecond), middle: true, maxWidth: Size.X - 52);
-            else DrawText(canvas, Text, Position.X + Size.X / 2 + (IsSelected ? 5 : 0), Position.Y + Size.Y / 2, FontSize, GetColor(IsSelected ? Theme.TextMain : Theme.TextSecond), centered: true, middle: true, maxWidth: Size.X - (IsSelected ? 18 : 12));
+            float checkX = Position.X + 14;
+            using var box = GetPaint(); box.Color = GetColor(Col.Lerp(Theme.TextThird, Theme.Primary, SelectionAmount)).Value(); box.IsStroke = true; box.StrokeWidth = 1;
+            canvas.DrawRoundRect(SKRect.Create(checkX - 2, Position.Y + (Size.Y - 16) / 2, 16, 16), 4, 4, box);
+            if (SelectionAmount > .001f)
+            {
+                using var fill = GetPaint(); fill.Color = GetColor(Theme.Primary.Override(a: SelectionAmount)).Value();
+                canvas.DrawRoundRect(SKRect.Create(checkX - 2, Position.Y + (Size.Y - 16) / 2, 16, 16), 4, 4, fill);
+                using var tick = GetPaint(); tick.Color = GetColor(Theme.TextMain.Override(a: SelectionAmount)).Value(); tick.IsStroke = true; tick.StrokeWidth = 1.5f; tick.StrokeCap = SKStrokeCap.Round;
+                float cy = Position.Y + Size.Y / 2; using var path = new SKPath();
+                path.MoveTo(checkX + 2, cy); path.LineTo(checkX + 5, cy + 3); path.LineTo(checkX + 10, cy - 3); canvas.DrawPath(path, tick);
+            }
+            DrawText(canvas, Text, Position.X + 40, Position.Y + Size.Y / 2, FontSize, foreground, middle: true, maxWidth: Size.X - 52);
         }
     }
     public sealed class ConferenceRow : MenuButton
@@ -486,13 +556,21 @@ public sealed class ConferenceMenu : IIslandMenu
         }
         public void Bind(DeadlineRow? row)
         {
+            if (Row?.Id != row?.Id) ResetVisualFeedback();
             Row = row; AcceptsInput = row is not null; InputIdentity = StableId + ":" + (row?.Id ?? "");
             ActionName = row is null ? "" : "Deadline details for " + row.Heading;
+        }
+        protected override void ConfigureColors()
+        {
+            normalColor = Theme.WidgetBackground;
+            hoverColor = Col.White.Override(a: .09f);
+            clickColor = Col.White.Override(a: .13f);
         }
         public override void Draw(SKCanvas canvas)
         {
             if (Row is not { } row) return;
-            using var paint = GetPaint(); paint.Color = GetColor(IsMouseDown ? Col.White.Override(a: 0.13f) : IsHovering ? Col.White.Override(a: 0.09f) : Theme.WidgetBackground).Value();
+            using var visual = BeginVisualDrawing(canvas);
+            using var paint = GetPaint(); paint.Color = Color.Value();
             canvas.DrawRoundRect(GetRect(), paint);
             float x = Position.X, y = Position.Y;
             using var titlePaint = new SKPaint { Typeface = Res.InterBold, TextSize = 13 };
@@ -504,7 +582,7 @@ public sealed class ConferenceMenu : IIslandMenu
             string kind = row.Deadline.Kind == "abstract" ? "Abstract" : "Submission";
             string metadata = kind + " · " + row.Deadline.Utc.ToLocalTime().ToString("MMM dd, HH:mm", CultureInfo.InvariantCulture);
             DrawText(canvas, metadata, x + 11, y + 36, 10.5f, GetColor(Theme.TextSecond), maxWidth: 176);
-            DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + 276, y + 24, 14, GetColor(Theme.TextMain), right: true, middle: true, maxWidth: 83);
+            DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + 276, y + 24, 14, GetColor(CountdownColor(row.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextMain)), right: true, middle: true, maxWidth: 83);
         }
     }
     private sealed class Label : UIObject
@@ -528,7 +606,7 @@ public sealed class ConferenceMenu : IIslandMenu
             using var background = GetPaint(); background.Color = GetColor(Theme.WidgetBackground).Value(); canvas.DrawRoundRect(GetRect(), background);
             float x = Position.X + 12, y = Position.Y;
             DrawText(canvas, point.Kind == "abstract" ? "Abstract deadline" : "Submission deadline", x, y + 19, 11.5f, GetColor(Theme.TextMain), bold: true, maxWidth: 174);
-            DrawText(canvas, Remaining(point.Utc - DateTimeOffset.UtcNow), Position.X + Size.X - 12, y + 19, 10.5f, GetColor(Theme.TextSecond), right: true);
+            DrawText(canvas, Remaining(point.Utc - DateTimeOffset.UtcNow), Position.X + Size.X - 12, y + 19, 10.5f, GetColor(CountdownColor(point.Utc - DateTimeOffset.UtcNow, Theme.TextSecond)), right: true);
             DrawText(canvas, "Local   " + point.Utc.ToLocalTime().ToString("MMM dd, HH:mm  zzz", CultureInfo.InvariantCulture), x, y + 40, 11, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
             DrawText(canvas, "Source   " + point.SourceTime + " " + point.Timezone, x, y + 59, 10.5f, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
         }

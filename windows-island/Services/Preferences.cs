@@ -22,9 +22,10 @@ public sealed class Preferences
     public int WithinDays { get; set; } = 365;
     public int ItemCount { get; set; } = 20;
     public bool SubmissionOnly { get; set; }
-    public bool ReducedMotion { get; set; }
     public int Monitor { get; set; }
     public int TopOffset { get; set; } = 12;
+    public string DockSide { get; set; } = "top";
+    public double DockPosition { get; set; } = .5;
     public string Search { get; set; } = "";
 
     public List<DeadlineRow> Visible(IEnumerable<ConferenceEdition> conferences, DateTimeOffset now)
@@ -48,6 +49,8 @@ public sealed class Preferences
             preferences.WithinDays = new[] { 30, 90, 180, 365 }.Contains(preferences.WithinDays) ? preferences.WithinDays : 365;
             preferences.ItemCount = Math.Clamp(preferences.ItemCount, 3, 50);
             preferences.TopOffset = Math.Clamp(preferences.TopOffset, 0, 100);
+            preferences.DockSide = Placement.DockPlacement.NormalizeSide(preferences.DockSide);
+            preferences.DockPosition = Placement.DockPlacement.NormalizePosition(preferences.DockPosition);
             preferences.Search = "";
             return preferences;
         }
