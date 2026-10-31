@@ -16,7 +16,7 @@ internal static class DockingChecks
             foreach (string side in new[] { "left", "right" })
             {
                 PixelRect? compact = null;
-                foreach (var size in new[] { (Width: 64, Height: 160), (Width: 320, Height: 114), (Width: 320, Height: 218), (Width: 320, Height: 432) })
+                foreach (var size in new[] { (Width: 35, Height: 200), (Width: 320, Height: 114), (Width: 320, Height: 218), (Width: 320, Height: 432) })
                 {
                     // The host remains wide; align the visible island, including
                     // its client offset and the native window's frame offset.
@@ -33,7 +33,7 @@ internal static class DockingChecks
                         check(Math.Abs(CenterY(centered) - CenterY(previous)) <= 1,
                             $"{label} {side}: expanding to {size.Height} DIP retains center");
                         check(side == "left" ? centered.Right > previous.Right : centered.Left < previous.Left,
-                            $"{label} {side}: expanded panel grows inward from portrait capsule");
+                            $"{label} {side}: expanded panel grows inward from rotated strip");
                     }
                     compact ??= centered;
 
@@ -59,7 +59,7 @@ internal static class DockingChecks
         var negativeClient = new PixelRect(108, 130, 808, 630);
         foreach (string side in new[] { "left", "right" })
         {
-            foreach (var negativeIsland in new[] { new PixelRect(318, 4, 382, 164), new PixelRect(190, 4, 510, 118) })
+            foreach (var negativeIsland in new[] { new PixelRect(332, 4, 367, 204), new PixelRect(190, 4, 510, 118) })
             {
                 var placed = Place(negativeMonitor, negativeWork, negativeWindow, negativeClient, negativeIsland, side, .5);
                 check(Aligned(placed, negativeWork, side) && Inside(placed, negativeWork),

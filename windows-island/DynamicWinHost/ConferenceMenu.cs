@@ -82,7 +82,10 @@ public sealed class ConferenceMenu : IIslandMenu
     public string PortraitTitle => _portraitCompact.RenderedTitle;
     public string PortraitPrimary => _portraitCompact.Primary;
     public string PortraitSecondary => _portraitCompact.Secondary;
-    public SKRect PortraitContentBounds => _portraitCompact.GetRect().Rect;
+    public SKRect PortraitContentBounds => SideContentBounds;
+    public SKRect SideContentBounds => SKRect.Create(_portraitCompact.Position.X, _portraitCompact.Position.Y,
+        _portraitCompact.Size.X, _portraitCompact.Size.Y);
+    public float SideRotationDegrees => _portraitCompact.RotationDegrees;
     public Col PortraitCountdownColor => _portraitCompact.CountdownColor;
     public bool CopyFeedbackActive => Page == "details" && _copyFeedbackId.Length > 0
         && Selected?.Id == _copyFeedbackId && Stopwatch.GetElapsedTime(_copyFeedbackStarted).TotalSeconds < 1.5;
@@ -194,7 +197,10 @@ public sealed class ConferenceMenu : IIslandMenu
     }
 
     public Vec2 IslandSize()
-        => IsSideDock ? new Vec2(64, 160) : HorizontalCompactSize();
+    {
+        var horizontal = HorizontalCompactSize();
+        return IsSideDock ? new Vec2(horizontal.Y, horizontal.X) : horizontal;
+    }
 
     private Vec2 HorizontalCompactSize()
     {
@@ -257,10 +263,10 @@ public sealed class ConferenceMenu : IIslandMenu
         _compactCountdown.Color = next is null ? Theme.TextSecond : CountdownColor(next.Deadline.Utc - DateTimeOffset.UtcNow,
             Theme.TextSecond, _model.Preferences.IsFollowed(next.Id));
         _compactTitle.SetActive(!expanded && !IsSideDock); _compactCountdown.SetActive(!expanded && !IsSideDock);
+        _portraitCompact.Size = new Vec2(28, HorizontalCompactSize().X - 35);
+        _portraitCompact.RotationDegrees = _model.DockSide == "left" ? -90 : 90;
         _portraitCompact.Title = next?.Conference.Title ?? "CCF";
-        var parts = next is null ? (_model.Loading ? "Loading" : "--", "") : PortraitCountdown(next.Deadline.Utc - DateTimeOffset.UtcNow);
-        _portraitCompact.Primary = parts.Item1; _portraitCompact.Secondary = parts.Item2;
-        _portraitCompact.PrimaryFontSize = next is null && _model.Loading ? 12 : 18;
+        _portraitCompact.Primary = next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow);
         _portraitCompact.CountdownColor = next is null ? Theme.TextSecond : CountdownColor(next.Deadline.Utc - DateTimeOffset.UtcNow,
             Theme.TextSecond, _model.Preferences.IsFollowed(next.Id));
         _portraitCompact.SetActive(!expanded && IsSideDock);
@@ -397,11 +403,7 @@ public sealed class ConferenceMenu : IIslandMenu
         return $"{seconds / 60}m {seconds % 60}s";
     }
     public static (string Primary, string Secondary) PortraitCountdown(TimeSpan remaining)
-    {
-        string text = Remaining(remaining);
-        int split = text.IndexOf(' ');
-        return split < 0 ? (text, "") : (text[..split], text[(split + 1)..]);
-    }
+        => (Remaining(remaining), "");
 
     private void Nav(string id, string text, float x, float width, Action action)
     { var button = Button(id, text, x, 14, width, 26, action); button.FontSize = 11; _navigation.Add(button); }
@@ -603,25 +605,8 @@ public sealed class ConferenceMenu : IIslandMenu
             var foreground = GetColor(Col.Lerp(Theme.TextSecond, Theme.TextMain, SelectionAmount));
             if (!FullRow)
             {
-                const float checkWidth = 8, checkGap = 6;
-                float indicatorWidth = (checkWidth + checkGap) * SelectionAmount;
-                using var measure = new SKPaint { Typeface = Res.InterRegular, TextSize = FontSize };
-                string label = Fit(Text, measure, Size.X - 8 - checkWidth - checkGap);
-                float groupWidth = indicatorWidth + measure.MeasureText(label);
-                float left = Position.X + (Size.X - groupWidth) / 2;
-                float textX = left + indicatorWidth;
-                float tickWidth = Math.Clamp(indicatorWidth - checkGap, 0, checkWidth);
-                if (tickWidth > .001f)
-                {
-                    int saved = canvas.Save(); canvas.ClipRect(GetRect().Rect);
-                    using var tick = GetPaint(); tick.Color = GetColor(Theme.TextMain.Override(a: SelectionAmount)).Value(); tick.IsStroke = true; tick.StrokeWidth = 1.5f; tick.StrokeCap = SKStrokeCap.Round;
-                    float cy = Position.Y + Size.Y / 2; using var path = new SKPath();
-                    float tickScale = tickWidth / checkWidth;
-                    path.MoveTo(left, cy); path.LineTo(left + 3 * tickScale, cy + 3 * tickScale);
-                    path.LineTo(left + tickWidth, cy - 3 * tickScale); canvas.DrawPath(path, tick);
-                    canvas.RestoreToCount(saved);
-                }
-                DrawText(canvas, label, textX, Position.Y + Size.Y / 2, FontSize, foreground, middle: true);
+                DrawText(canvas, Text, Position.X + Size.X / 2, Position.Y + Size.Y / 2, FontSize, foreground,
+                    centered: true, middle: true, maxWidth: Size.X - 12);
                 return;
             }
             const float switchWidth = 40, switchHeight = 22, sidePadding = 12;
@@ -682,25 +667,30 @@ public sealed class ConferenceMenu : IIslandMenu
     {
         public string Title { get; set; } = "CCF";
         public string Primary { get; set; } = "--";
-        public string Secondary { get; set; } = "";
-        public float PrimaryFontSize { get; set; } = 18;
+        public string Secondary => "";
+        public float RotationDegrees { get; set; } = 90;
         public Col CountdownColor { get; set; } = Theme.TextSecond;
+        private float TitleWidth(SKPaint paint) => Math.Max(0, Size.Y - paint.MeasureText(Primary) - 20);
         public string RenderedTitle
         {
             get
             {
-                using var paint = new SKPaint { Typeface = Res.InterRegular, TextSize = 12 };
-                return Fit(Title, paint, 48);
+                using var paint = new SKPaint { Typeface = Res.InterRegular, TextSize = 14 };
+                return Fit(Title, paint, TitleWidth(paint));
             }
         }
-        public PortraitCompact(IslandObject island) : base(island, Vec2.zero, new Vec2(48, 108), UIAlignment.Center)
+        public PortraitCompact(IslandObject island) : base(island, Vec2.zero, new Vec2(28, 165), UIAlignment.Center)
         { Anchor = new Vec2(.5f, .5f); Color = Col.Transparent; }
         public override void Draw(SKCanvas canvas)
         {
-            float x = Position.X + 24, y = Position.Y;
-            DrawText(canvas, Title, x, y + 21, 12, GetColor(Theme.TextMain), centered: true, middle: true, maxWidth: 48);
-            DrawText(canvas, Primary, x, y + 55, PrimaryFontSize, GetColor(CountdownColor), centered: true, middle: true, maxWidth: 48);
-            DrawText(canvas, Secondary, x, y + 83, 12, GetColor(CountdownColor), centered: true, middle: true, maxWidth: 48);
+            using var paint = new SKPaint { Typeface = Res.InterRegular, TextSize = 14 };
+            // Rotate a native-size line rather than scaling its text with the shell morph.
+            canvas.Save();
+            canvas.Translate(Position.X + Size.X / 2, Position.Y + Size.Y / 2);
+            canvas.RotateDegrees(RotationDegrees);
+            DrawText(canvas, Title, -Size.Y / 2, 0, 14, GetColor(Theme.TextMain), middle: true, maxWidth: TitleWidth(paint));
+            DrawText(canvas, Primary, Size.Y / 2, 0, 14, GetColor(CountdownColor), right: true, middle: true);
+            canvas.Restore();
         }
     }
     private sealed class Label : UIObject

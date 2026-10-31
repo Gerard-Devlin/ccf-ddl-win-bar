@@ -285,20 +285,22 @@ internal static class UiRegressionChecks
             {
                 Dock(side); renderer.Settle(false);
                 var shell = renderer.MainIsland.GetRect().Rect;
-                var content = menu.PortraitContentBounds;
-                Check(menu.IslandSize().X == 64 && menu.IslandSize().Y == 160
-                    && Math.Abs(shell.Width - 64) < .5f && Math.Abs(shell.Height - 160) < .5f,
-                    side + " compact dock is a 64x160 portrait capsule");
-                Check(content.Width == 48 && shell.Contains(content), side + " portrait content fits inside the shell");
-                Check(menu.PortraitTitle == originalRows[1].Conference.Title && menu.PortraitSecondary.Length > 0,
-                    side + " portrait keeps selected title and two upright countdown lines");
+                var content = menu.SideContentBounds;
+                Check(menu.IslandSize().X == 35 && menu.IslandSize().Y >= 200
+                    && Math.Abs(shell.Width - 35) < .5f && Math.Abs(shell.Height - menu.IslandSize().Y) < .5f,
+                    side + " compact dock swaps the horizontal capsule axes into a slim strip");
+                Check(content.Width == 28 && Math.Abs(content.Height - (menu.IslandSize().Y - 35)) < .01f
+                    && shell.Contains(content), side + " rotated content fits inside the shell");
+                Check(menu.PortraitTitle == originalRows[1].Conference.Title && menu.PortraitPrimary.Contains(' ')
+                    && menu.PortraitSecondary.Length == 0 && menu.SideRotationDegrees == (side == "left" ? -90 : 90),
+                    side + " compact title and countdown share one rotated line");
                 model.Preferences.FollowedConferenceIds.Add(originalRows[1].Id); menu.Update();
                 Check(menu.PortraitCountdownColor.Value() == ConferenceMenu.FollowColor.Value(), side + " portrait keeps followed green");
                 model.Preferences.FollowedConferenceIds.Clear();
 
                 model.Rows = new[] { originalRows[1] }; menu.Update(); renderer.Settle(false);
                 renderer.BeginDockDrag(); renderer.Settle(false, 30);
-                Check(Math.Abs(renderer.MainIsland.Size.X - 64) < .5f && !renderer.MainIsland.IsHovering,
+                Check(Math.Abs(renderer.MainIsland.Size.X - 35) < .5f && !renderer.MainIsland.IsHovering,
                     side + " compact drag stays compact even when expanded list would be shorter");
                 renderer.EndDockDrag(cancelled: false); renderer.Settle(true);
                 Check(renderer.ContentReady && menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 114,

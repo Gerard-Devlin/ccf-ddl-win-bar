@@ -259,6 +259,7 @@ public sealed class RendererMain : SKElement, IDisposable
         if (Menu is null) return;
         MainIsland.DrawCall(canvas);
         if (MainIsland.hidden) return;
+        DrawSideAttachment(canvas);
         foreach (var element in Menu.UiObjects)
         {
             int saved = canvas.Save();
@@ -276,6 +277,30 @@ public sealed class RendererMain : SKElement, IDisposable
         Input.DrawFocus(canvas);
         canvas.RestoreToCount(focusSaved);
         canvas.Flush();
+    }
+
+    private void DrawSideAttachment(SKCanvas canvas)
+    {
+        if (Model.DockSide is not ("left" or "right")) return;
+        var compact = Menu.IslandSize();
+        var expanded = Menu.IslandSizeBig();
+        float widthRange = expanded.X - compact.X;
+        if (widthRange <= 0) return;
+        // Complete the edge-facing half of the rounded compact shell. As the
+        // island widens, fade this host-only fill back to the upstream round rect.
+        float amount = Math.Clamp((expanded.X - MainIsland.Size.X) / widthRange, 0, 1);
+        if (amount <= 1f / 255) return;
+        if (amount >= .995f) amount = 1;
+        var bounds = MainIsland.GetRect().Rect;
+        var attachedHalf = Model.DockSide == "left"
+            ? new SKRect(bounds.Left, bounds.Top, bounds.MidX, bounds.Bottom)
+            : new SKRect(bounds.MidX, bounds.Top, bounds.Right, bounds.Bottom);
+        using var paint = new SKPaint
+        {
+            IsAntialias = Settings.AntiAliasing,
+            Color = Theme.IslandBackground.Override(a: amount).Value()
+        };
+        canvas.DrawRect(attachedHalf, paint);
     }
 
     // Offscreen verification uses these same production objects, not a second UI implementation.

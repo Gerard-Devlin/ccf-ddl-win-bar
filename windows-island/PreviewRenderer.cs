@@ -34,8 +34,8 @@ public static class PreviewRenderer
             string side = page.StartsWith("left-", StringComparison.Ordinal) ? "left" : page.StartsWith("right-", StringComparison.Ordinal) ? "right" : "top";
             renderer.Model.DockSide = side;
             DynamicWin.Main.Settings.IslandMode = side == "top" ? IslandObject.IslandMode.Notch : IslandObject.IslandMode.Island;
-            bool followed = page.StartsWith("followed", StringComparison.Ordinal);
-            bool urgent = followed || page.StartsWith("urgent", StringComparison.Ordinal);
+            bool followed = page.StartsWith("followed", StringComparison.Ordinal) || page.EndsWith("-docked", StringComparison.Ordinal);
+            bool urgent = page.StartsWith("followed", StringComparison.Ordinal) || page.StartsWith("urgent", StringComparison.Ordinal);
             renderer.Model.Preferences.SubmissionOnly = page == "settings-switches-on" || submissionOnly;
             renderer.Model.LaunchAtStartup = page == "settings-switches-on" || launchAtStartup;
             renderer.Model.Preferences.FollowedConferenceIds = followed ? new() { rows[0].Id } : followedIds;
@@ -80,11 +80,15 @@ public static class PreviewRenderer
             }
             if (side != "top")
             {
+                const float previewScale = 1.5f;
+                using var sideSurface = SKSurface.Create(new SKImageInfo(1050, 750));
+                sideSurface.Canvas.Scale(previewScale);
+                renderer.DrawScene(sideSurface.Canvas);
+                using var sideImage = sideSurface.Snapshot();
                 using var stage = SKSurface.Create(new SKImageInfo(600, 500));
                 stage.Canvas.Clear(new SKColor(24, 39, 58));
-                float inset = island.Rect.Left - bounds.Left;
-                float x = side == "left" ? -inset : 600 - island.Width - inset;
-                stage.Canvas.DrawBitmap(crop, x, (500 - island.Height) / 2 - island.Rect.Top);
+                float x = side == "left" ? -island.Rect.Left * previewScale : 600 - island.Rect.Right * previewScale;
+                stage.Canvas.DrawImage(sideImage, x, (500 - island.Height * previewScale) / 2 - island.Rect.Top * previewScale);
                 using var staged = stage.Snapshot();
                 using var stagedData = staged.Encode(SKEncodedImageFormat.Png, 100);
                 using var stagedOutput = File.Create(Path.Combine(directory, page + "-preview.png"));
