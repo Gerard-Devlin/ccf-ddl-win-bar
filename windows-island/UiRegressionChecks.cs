@@ -165,15 +165,20 @@ internal static class UiRegressionChecks
             for (int count = 0; count <= 3; count++)
             {
                 model.Rows = new Preferences().Visible(conferences.Take(count), now);
-                Page("widgets");
-                Check(Enumerable.Range(0, 3).Count(index => Control("upcoming.row." + index).ImmediateInputEnabled) == count, count + " conferences expose exactly the available rows");
-                float expected = count == 0 ? 146 : 62 + 52 * count;
-                Check(menu.IslandSizeBig().Y == expected, count + " conferences use compact non-overlapping geometry");
-                var island = renderer.MainIsland.GetRect().Rect;
-                for (int index = 0; index < count; index++)
+                foreach (string page in new[] { "widgets", "list" })
                 {
-                    var bounds = Control("upcoming.row." + index).GetInputRect().Rect;
-                    Check(bounds.Left >= island.Left && bounds.Right <= island.Right && bounds.Top >= island.Top + 48 && bounds.Bottom <= island.Bottom - 16, "row stays inside shell with bottom padding");
+                    Page(page);
+                    string prefix = page == "widgets" ? "upcoming.row." : "list.row.";
+                    int slots = page == "widgets" ? 3 : 5;
+                    Check(Enumerable.Range(0, slots).Count(index => Control(prefix + index).ImmediateInputEnabled) == count, page + ": " + count + " conferences expose exactly the available rows");
+                    float expected = count == 0 ? 146 : 62 + 52 * count;
+                    Check(menu.IslandSizeBig().Y == expected, page + ": " + count + " conferences use compact non-overlapping geometry");
+                    var island = renderer.MainIsland.GetRect().Rect;
+                    for (int index = 0; index < count; index++)
+                    {
+                        var bounds = Control(prefix + index).GetInputRect().Rect;
+                        Check(bounds.Left >= island.Left && bounds.Right <= island.Right && bounds.Top >= island.Top + 48 && bounds.Bottom <= island.Bottom - 16, "row stays inside shell with bottom padding");
+                    }
                 }
             }
             var longTitle = conferences[0] with { Id = "long-title", Title = "International Conference on a Very Long Conference Name for Layout Verification" };

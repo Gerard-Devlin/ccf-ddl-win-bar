@@ -188,7 +188,9 @@ public sealed class ConferenceMenu : IIslandMenu
     }
     public Vec2 IslandSizeBig() => new(320, Page switch
     {
-        "filters" => 380, "display" => 180, "list" => 322, "details" => _detailTotal > 2 ? 352 : 311,
+        "filters" => 380, "display" => 180,
+        "list" => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(5, _model.Rows.Count),
+        "details" => _detailTotal > 2 ? 352 : 311,
         _ => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(3, _model.Rows.Count)
     });
     public Col IslandBorderColor() => Col.Transparent;

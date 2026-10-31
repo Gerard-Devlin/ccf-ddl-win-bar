@@ -20,9 +20,11 @@ public static class PreviewRenderer
         int checks = UiRegressionChecks.Run(renderer);
         int nativeChecks = NativeWindowChecks.Run();
         var report = new Dictionary<string, object>();
-        foreach (string page in new[] { "widgets", "list", "details", "filters", "display", "compact" })
+        var rows = renderer.Model.Rows;
+        foreach (string page in new[] { "widgets", "list", "list-two", "details", "filters", "display", "compact" })
         {
-            renderer.Menu.ShowPage(page == "compact" ? "widgets" : page);
+            renderer.Model.Rows = page == "list-two" ? rows.Take(2).ToArray() : rows;
+            renderer.Menu.ShowPage(page switch { "compact" => "widgets", "list-two" => "list", _ => page });
             renderer.Settle(page != "compact");
             using var surface = SKSurface.Create(new SKImageInfo(700, 500, SKColorType.Bgra8888, SKAlphaType.Premul));
             renderer.DrawScene(surface.Canvas);
