@@ -75,6 +75,12 @@ try
     preferences.Save(Path.Combine(temp, "dock-prefs.json"));
     var dockPreferences = Preferences.Load(Path.Combine(temp, "dock-prefs.json"));
     Check(dockPreferences.DockSide == "right" && dockPreferences.DockPosition == .73, "Dock edge and vertical position survive restart");
+    preferences.ToggleFollow("test30");
+    preferences.Save(Path.Combine(temp, "follow-prefs.json"));
+    var followedPreferences = Preferences.Load(Path.Combine(temp, "follow-prefs.json"));
+    Check(followedPreferences.IsFollowed("TEST30"), "Followed conference survives restart and matches by ID");
+    followedPreferences.ToggleFollow("TEST30");
+    Check(!followedPreferences.IsFollowed("test30"), "Following can be cancelled without duplicate IDs");
     var handler = new FixtureHandler("not: [yaml", yaml);
     using var network = new DeadlineService(Path.Combine(temp, "network.json"), new HttpClient(handler));
     var fetched = await network.FetchAsync(["https://primary.test/data", "https://mirror.test/data"]);

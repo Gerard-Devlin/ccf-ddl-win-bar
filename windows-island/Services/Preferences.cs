@@ -22,11 +22,19 @@ public sealed class Preferences
     public int WithinDays { get; set; } = 365;
     public int ItemCount { get; set; } = 20;
     public bool SubmissionOnly { get; set; }
+    public List<string> FollowedConferenceIds { get; set; } = [];
     public int Monitor { get; set; }
     public int TopOffset { get; set; } = 12;
     public string DockSide { get; set; } = "top";
     public double DockPosition { get; set; } = .5;
     public string Search { get; set; } = "";
+
+    public bool IsFollowed(string id) => FollowedConferenceIds.Contains(id, StringComparer.OrdinalIgnoreCase);
+    public void ToggleFollow(string id)
+    {
+        if (IsFollowed(id)) FollowedConferenceIds.RemoveAll(value => string.Equals(value, id, StringComparison.OrdinalIgnoreCase));
+        else FollowedConferenceIds.Add(id);
+    }
 
     public List<DeadlineRow> Visible(IEnumerable<ConferenceEdition> conferences, DateTimeOffset now)
     {
@@ -52,6 +60,8 @@ public sealed class Preferences
             preferences.DockSide = Placement.DockPlacement.NormalizeSide(preferences.DockSide);
             preferences.DockPosition = Placement.DockPlacement.NormalizePosition(preferences.DockPosition);
             preferences.Search = "";
+            preferences.FollowedConferenceIds = (preferences.FollowedConferenceIds ?? [])
+                .Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             return preferences;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { return new(); }

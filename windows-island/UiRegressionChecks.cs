@@ -155,6 +155,13 @@ internal static class UiRegressionChecks
             Click("upcoming.row.1"); renderer.Settle(true);
             Check(menu.Page == "details" && menu.Selected?.Id == selectedId, "conference row opens its own deadline details");
             Check(Control("details.website").ImmediateInputEnabled, "explicit website action is available in details");
+            Click("details.follow");
+            Check(model.Preferences.IsFollowed(selectedId) && Preferences.Load(settings).IsFollowed(selectedId),
+                "follow action saves the selected conference by ID");
+            Check(ConferenceMenu.CountdownColor(TimeSpan.FromHours(18), Theme.TextMain, followed: true).Value() == ConferenceMenu.FollowColor.Value(),
+                "followed countdowns use green even inside the urgent window");
+            Click("details.follow");
+            Check(!model.Preferences.IsFollowed(selectedId), "following can be cancelled from the same action");
             Click("details.back"); renderer.Settle(true);
             Check(menu.Page == "widgets", "details Back restores origin page");
             renderer.Settle(false);
@@ -202,6 +209,11 @@ internal static class UiRegressionChecks
             var longTitle = conferences[0] with { Id = "long-title", Title = "International Conference on a Very Long Conference Name for Layout Verification" };
             model.Rows = new Preferences().Visible(new[] { longTitle }, now); Page("widgets");
             Check(((ConferenceMenu.ConferenceRow)Control("upcoming.row.0")).BoundId == "long-title" && menu.IslandSizeBig().X == 320, "long conference names retain fixed width and binding");
+
+            var singlePoint = conferences[0] with { Id = "single-date", Deadlines = new() { later } };
+            model.Rows = new Preferences().Visible(new[] { singlePoint }, now); Page("widgets"); Click("upcoming.row.0"); renderer.Settle(true);
+            Check(menu.IslandSizeBig().Y == 228 && Control("details.follow").GetInputRect().Rect.Bottom <= renderer.MainIsland.GetRect().Rect.Bottom - 15,
+                "single deadline details shrink around their actions without empty card space");
 
             var points = Enumerable.Range(0, 6).Select(index => new DeadlinePoint("submission", "cycle-" + index, "UTC", now.AddDays(index + 10), null)).ToList();
             var manyDates = conferences[0] with { Id = "many-dates", Deadlines = points };

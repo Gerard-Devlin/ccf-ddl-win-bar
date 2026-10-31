@@ -8,7 +8,10 @@ Verified on Windows on 2026-10-31.
   background transition and checkmark fade. Input bounds stay fixed. Checkmarks
   retain at least 6 DIP separation from labels throughout the transition.
 - Positive countdowns at most 24 hours away use the existing red error color in
-  compact mode, conference rows and deadline details.
+  compact mode, conference rows and deadline details. Followed conferences use
+  green in all three views, taking priority over urgency red. The Follow/Following
+  action replaces the detail Calendar button and persists conference IDs.
+- Single-date details shrink to 228 DIP, with actions directly below the date.
 - Current-user startup registration uses a quoted executable path. DLL/runtime
   hosts are rejected, and disabling removes only this application's value.
 - Blank-area dragging uses WPF capture and a movement threshold. The supported
@@ -20,9 +23,9 @@ Verified on Windows on 2026-10-31.
 
 Checks passed:
 
-- 215 data, persistence, calendar and placement checks, including 100/125/150/200%
+- 217 data, persistence, calendar and placement checks, including 100/125/150/200%
   calculations, edge clamps, dock normalization, no-bottom selection and saved position.
-- 113 production UI checks through routed WPF pointer events and shared keyboard
+- 120 production UI checks through routed WPF pointer events and shared keyboard
   input, including settings startup callbacks and intermediate animation states.
 - 9 native topmost and 15 native docking checks using owned hidden HWNDs. Dock
   checks cover actual physical edge alignment, expansion, preview/cancel and commit.
@@ -31,4 +34,5 @@ Checks passed:
 
 Screenshots use the production renderer and sample conferences:
 [settings](screenshots/settings.png), [urgent countdown](screenshots/urgent.png),
-[compact urgent countdown](screenshots/urgent-compact.png).
+[compact urgent countdown](screenshots/urgent-compact.png),
+[following](screenshots/followed-details.png), [compact following](screenshots/followed-compact.png).

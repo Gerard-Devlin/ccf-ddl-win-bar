@@ -23,18 +23,23 @@ public static class PreviewRenderer
         int dockingChecks = DockNativeChecks.Run();
         var report = new Dictionary<string, object>();
         var rows = renderer.Model.Rows;
-        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "compact", "urgent", "urgent-compact", "urgent-details" })
+        var followedIds = renderer.Model.Preferences.FollowedConferenceIds;
+        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details" })
         {
-            bool urgent = page.StartsWith("urgent", StringComparison.Ordinal);
+            bool followed = page.StartsWith("followed", StringComparison.Ordinal);
+            bool urgent = followed || page.StartsWith("urgent", StringComparison.Ordinal);
+            renderer.Model.Preferences.FollowedConferenceIds = followed ? new() { rows[0].Id } : followedIds;
             if (urgent)
             {
-                var deadline = rows[0].Deadline with { Utc = DateTimeOffset.UtcNow.AddHours(18) };
+                var deadlineTime = DateTimeOffset.UtcNow.AddHours(18);
+                var deadline = rows[0].Deadline with { Utc = deadlineTime,
+                    SourceTime = deadlineTime.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture), Timezone = "UTC" };
                 var conference = rows[0].Conference with { Deadlines = new() { deadline } };
                 renderer.Model.Rows = new[] { new CcfDeadlineIsland.Models.DeadlineRow(conference, deadline, DateTimeOffset.UtcNow) };
             }
             else renderer.Model.Rows = page == "list-two" ? rows.Take(2).ToArray() : rows;
-            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" => "widgets", "list-two" => "list", "urgent-details" => "details", _ => page });
-            renderer.Settle(page is not ("compact" or "urgent-compact"));
+            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" => "widgets", "list-two" => "list", "urgent-details" or "followed-details" => "details", _ => page });
+            renderer.Settle(page is not ("compact" or "urgent-compact" or "followed-compact"));
             using var surface = SKSurface.Create(new SKImageInfo(700, 500, SKColorType.Bgra8888, SKAlphaType.Premul));
             renderer.DrawScene(surface.Canvas);
             using var full = SKBitmap.FromImage(surface.Snapshot());
@@ -58,6 +63,7 @@ public static class PreviewRenderer
             }
             report[page] = new { width = island.Width, height = island.Height, source = "DynamicWin main 9f24d17", controls = renderer.Menu.UiObjects.Count };
         }
+        renderer.Model.Preferences.FollowedConferenceIds = followedIds;
         File.WriteAllText(Path.Combine(directory, "geometry.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost, {dockingChecks} native docking and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");
         renderer.Dispose();

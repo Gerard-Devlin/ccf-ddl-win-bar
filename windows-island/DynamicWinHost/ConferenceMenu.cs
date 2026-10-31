@@ -168,7 +168,7 @@ public sealed class ConferenceMenu : IIslandMenu
         }
         AddPageButton("details", "details.website", "Website", 16, 267, 100, 28, () => InvokeSelected(_model.OpenWebsite)).LeadingGlyph = ButtonGlyph.Website;
         AddPageButton("details", "details.copy", "Copy", 124, 267, 78, 28, () => InvokeSelected(_model.CopyTime)).LeadingGlyph = ButtonGlyph.Copy;
-        AddPageButton("details", "details.calendar", "Calendar", 210, 267, 94, 28, () => InvokeSelected(_model.ExportCalendar)).LeadingGlyph = ButtonGlyph.Calendar;
+        AddPageButton("details", "details.follow", "Follow", 210, 267, 94, 28, ToggleFollowSelected).LeadingGlyph = ButtonGlyph.Follow;
         _previousDeadlines = Button("details.previous", "<", 16, 313, 30, 24, () => Scroll(120));
         _previousDeadlines.ActionName = "Previous deadline dates";
         _nextDeadlines = Button("details.next", ">", 274, 313, 30, 24, () => Scroll(-120));
@@ -189,7 +189,7 @@ public sealed class ConferenceMenu : IIslandMenu
     {
         "settings" => 432,
         "list" => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(5, _model.Rows.Count),
-        "details" => _detailTotal > 2 ? 352 : 311,
+        "details" => _detailTotal > 2 ? 352 : _detailTotal == 2 ? 311 : 228,
         _ => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(3, _model.Rows.Count)
     });
     public Col IslandBorderColor() => Col.Transparent;
@@ -234,7 +234,8 @@ public sealed class ConferenceMenu : IIslandMenu
         _compactContainer.Size = IslandSize() - 35;
         _compactTitle.SilentSetText(next is null ? "CCF" : DWText.Truncate(next.Conference.Title, 12));
         _compactCountdown.SilentSetText(next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow));
-        _compactCountdown.Color = next is null ? Theme.TextSecond : CountdownColor(next.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextSecond);
+        _compactCountdown.Color = next is null ? Theme.TextSecond : CountdownColor(next.Deadline.Utc - DateTimeOffset.UtcNow,
+            Theme.TextSecond, _model.Preferences.IsFollowed(next.Id));
         _compactTitle.SetActive(!expanded); _compactCountdown.SetActive(!expanded);
         foreach (var group in _pages)
             foreach (var item in group.Value) item.SetActive(expanded && group.Key == Page);
@@ -245,12 +246,14 @@ public sealed class ConferenceMenu : IIslandMenu
         for (int i = 0; i < 3; i++)
         {
             _upcomingRows[i].Bind(_model.Rows.ElementAtOrDefault(i));
+            _upcomingRows[i].IsFollowed = _upcomingRows[i].Row is { } row && _model.Preferences.IsFollowed(row.Id);
             _upcomingRows[i].SetActive(expanded && Page == "widgets" && _upcomingRows[i].Row is not null);
         }
         _listOffset = Math.Clamp(_listOffset, 0, Math.Max(0, _model.Rows.Count - 5));
         for (int i = 0; i < 5; i++)
         {
             _listRows[i].Bind(_model.Rows.ElementAtOrDefault(_listOffset + i));
+            _listRows[i].IsFollowed = _listRows[i].Row is { } row && _model.Preferences.IsFollowed(row.Id);
             _listRows[i].SetActive(expanded && Page == "list" && _listRows[i].Row is not null);
         }
         foreach (var pair in _ranks) pair.Value.IsSelected = _model.Preferences.Ccf.Contains(pair.Key);
@@ -282,18 +285,26 @@ public sealed class ConferenceMenu : IIslandMenu
         _detailTotal = points.Count;
         _detailOffset = Math.Clamp(_detailOffset, 0, Math.Max(0, points.Count - 2));
         _detailTitle.Text = selected?.Heading ?? "";
+        float actionY = points.Count <= 1 ? 184 : 267;
+        _buttons["details.website"].Position = new Vec2(16, actionY);
+        _buttons["details.copy"].Position = new Vec2(124, actionY);
+        _buttons["details.follow"].Position = new Vec2(210, actionY);
         for (int i = 0; i < 2; i++)
         {
             var point = points.ElementAtOrDefault(_detailOffset + i);
             _detailPanels[i].Point = point;
+            _detailPanels[i].IsFollowed = selected is not null && _model.Preferences.IsFollowed(selected.Id);
             _detailPanels[i].SetActive(expanded && Page == "details" && point is not null);
         }
-        foreach (string id in new[] { "details.website", "details.copy", "details.calendar" })
+        foreach (string id in new[] { "details.website", "details.copy", "details.follow" })
         {
             _buttons[id].InputIdentity = id + ":" + (selected?.Id ?? "");
             _buttons[id].AcceptsInput = selected is not null;
         }
         _buttons["details.website"].AcceptsInput = selected is not null && Uri.TryCreate(selected.Conference.Website, UriKind.Absolute, out var website) && website.Scheme is "http" or "https";
+        bool followed = selected is not null && _model.Preferences.IsFollowed(selected.Id);
+        _buttons["details.follow"].Text = followed ? "Following" : "Follow";
+        _buttons["details.follow"].IsSelected = followed;
         _previousDeadlines.AcceptsInput = _detailOffset > 0;
         _nextDeadlines.AcceptsInput = _detailOffset + 2 < points.Count;
         _previousDeadlines.SetActive(expanded && Page == "details" && points.Count > 2);
@@ -312,6 +323,11 @@ public sealed class ConferenceMenu : IIslandMenu
         if (index < 0) { ShowPage("widgets"); return; }
         _model.SelectedIndex = index; _model.SelectedConferenceId = _selectedId; action?.Invoke();
     }
+    private void ToggleFollowSelected() => InvokeSelected(() =>
+    {
+        _model.Preferences.ToggleFollow(_selectedId);
+        SaveAndRefresh();
+    });
     private bool HasFilters() => _model.Preferences.Ccf.Count != Preferences.CcfValues.Length || _model.Preferences.WithinDays != 365
         || _model.Preferences.SubmissionOnly || _model.Preferences.Core.Count != Preferences.CoreValues.Length
         || _model.Preferences.Thcpl.Count != Preferences.ThcplValues.Length || _model.Preferences.Categories.Count != Preferences.Areas.Count;
@@ -324,7 +340,9 @@ public sealed class ConferenceMenu : IIslandMenu
     }
     private void SaveAndRefresh() { _model.SavePreferences?.Invoke(); Update(); }
     public static bool IsUrgent(TimeSpan remaining) => remaining > TimeSpan.Zero && remaining <= TimeSpan.FromDays(1);
-    public static Col CountdownColor(TimeSpan remaining, Col normal) => IsUrgent(remaining) ? Theme.Error : normal;
+    public static Col FollowColor { get; } = Col.FromHex("#55C88A");
+    public static Col CountdownColor(TimeSpan remaining, Col normal, bool followed = false)
+        => followed ? FollowColor : IsUrgent(remaining) ? Theme.Error : normal;
 
     public static string Remaining(TimeSpan remaining)
     {
@@ -350,7 +368,7 @@ public sealed class ConferenceMenu : IIslandMenu
     private Label AddLabel(string page, string text, float x, float y, float width, float height, float size, Col color, bool bold = false, bool center = false)
     { var label = new Label(_island, x, y, width, height, size, color) { Text = text, Bold = bold, Center = center }; AddPageObject(page, label); return label; }
 
-    public enum ButtonGlyph { None, Website, Copy, Calendar, Back, Reset }
+    public enum ButtonGlyph { None, Website, Copy, Calendar, Back, Reset, Follow }
 
     public class MenuButton : DWButton
     {
@@ -374,6 +392,13 @@ public sealed class ConferenceMenu : IIslandMenu
         }
         protected virtual void ConfigureColors()
         {
+            if (LeadingGlyph == ButtonGlyph.Follow && IsSelected)
+            {
+                normalColor = FollowColor.Override(a: .13f);
+                hoverColor = FollowColor.Override(a: .22f);
+                clickColor = FollowColor.Override(a: .3f);
+                return;
+            }
             normalColor = IsSelected ? Col.White.Override(a: 0.075f) : Col.Transparent;
             hoverColor = IsSelected ? Col.White.Override(a: 0.12f) : Col.White.Override(a: 0.08f);
             clickColor = Col.White.Override(a: 0.14f);
@@ -427,7 +452,8 @@ public sealed class ConferenceMenu : IIslandMenu
         {
             using var visual = BeginVisualDrawing(canvas);
             using var background = GetPaint(); background.Color = Color.Value(); canvas.DrawRoundRect(GetRect(), background);
-            var foreground = GetColor(AcceptsInput ? Theme.TextSecond : Theme.TextThird);
+            var foreground = GetColor(!AcceptsInput ? Theme.TextThird : LeadingGlyph == ButtonGlyph.Follow
+                ? Col.Lerp(Theme.TextSecond, FollowColor, SelectionAmount) : Theme.TextSecond);
             if (Icon is not null)
             {
                 using var paint = GetPaint(); paint.Color = foreground.Value();
@@ -456,6 +482,12 @@ public sealed class ConferenceMenu : IIslandMenu
             using var path = new SKPath();
             switch (glyph)
             {
+                case ButtonGlyph.Follow:
+                    path.MoveTo(x + 3, y + 1.75f); path.LineTo(x + 11, y + 1.75f);
+                    path.LineTo(x + 11, y + 12.25f); path.LineTo(x + 7, y + 9.5f);
+                    path.LineTo(x + 3, y + 12.25f); path.Close();
+                    canvas.DrawPath(path, paint);
+                    break;
                 case ButtonGlyph.Reset:
                     path.MoveTo(x + 2, y + 1); path.LineTo(x + 2, y + 5); path.LineTo(x + 6, y + 5);
                     path.MoveTo(x + 2.2f, y + 5);
@@ -548,6 +580,7 @@ public sealed class ConferenceMenu : IIslandMenu
     {
         private readonly Action<string> _select;
         public DeadlineRow? Row { get; private set; }
+        public bool IsFollowed { get; set; }
         public string BoundId => Row?.Id ?? "";
         public ConferenceRow(IslandObject island, float x, float y, Action<string> select) : base(island, "", x, y, 288, 48, () => { })
         {
@@ -582,7 +615,7 @@ public sealed class ConferenceMenu : IIslandMenu
             string kind = row.Deadline.Kind == "abstract" ? "Abstract" : "Submission";
             string metadata = kind + " · " + row.Deadline.Utc.ToLocalTime().ToString("MMM dd, HH:mm", CultureInfo.InvariantCulture);
             DrawText(canvas, metadata, x + 11, y + 36, 10.5f, GetColor(Theme.TextSecond), maxWidth: 176);
-            DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + 276, y + 24, 14, GetColor(CountdownColor(row.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextMain)), right: true, middle: true, maxWidth: 83);
+            DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + 276, y + 24, 14, GetColor(CountdownColor(row.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextMain, IsFollowed)), right: true, middle: true, maxWidth: 83);
         }
     }
     private sealed class Label : UIObject
@@ -599,6 +632,7 @@ public sealed class ConferenceMenu : IIslandMenu
     private sealed class DeadlinePanel : UIObject
     {
         public DeadlinePoint? Point { get; set; }
+        public bool IsFollowed { get; set; }
         public DeadlinePanel(IslandObject island, float x, float y, float width, float height) : base(island, new Vec2(x, y), new Vec2(width, height), UIAlignment.TopLeft) { Anchor = Vec2.zero; roundRadius = 11; }
         public override void Draw(SKCanvas canvas)
         {
@@ -606,7 +640,7 @@ public sealed class ConferenceMenu : IIslandMenu
             using var background = GetPaint(); background.Color = GetColor(Theme.WidgetBackground).Value(); canvas.DrawRoundRect(GetRect(), background);
             float x = Position.X + 12, y = Position.Y;
             DrawText(canvas, point.Kind == "abstract" ? "Abstract deadline" : "Submission deadline", x, y + 19, 11.5f, GetColor(Theme.TextMain), bold: true, maxWidth: 174);
-            DrawText(canvas, Remaining(point.Utc - DateTimeOffset.UtcNow), Position.X + Size.X - 12, y + 19, 10.5f, GetColor(CountdownColor(point.Utc - DateTimeOffset.UtcNow, Theme.TextSecond)), right: true);
+            DrawText(canvas, Remaining(point.Utc - DateTimeOffset.UtcNow), Position.X + Size.X - 12, y + 19, 10.5f, GetColor(CountdownColor(point.Utc - DateTimeOffset.UtcNow, Theme.TextSecond, IsFollowed)), right: true);
             DrawText(canvas, "Local   " + point.Utc.ToLocalTime().ToString("MMM dd, HH:mm  zzz", CultureInfo.InvariantCulture), x, y + 40, 11, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
             DrawText(canvas, "Source   " + point.SourceTime + " " + point.Timezone, x, y + 59, 10.5f, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
         }
