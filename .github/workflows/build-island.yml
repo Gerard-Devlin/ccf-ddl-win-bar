@@ -67,6 +67,7 @@ jobs:
             artifacts/ui-checks/*.png
             artifacts/ui-checks/geometry.json
             artifacts/ui-checks/checks.txt
+            artifacts/ui-checks/text-rendering-checks.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

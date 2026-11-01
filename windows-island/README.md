@@ -31,11 +31,11 @@ Publish the application without creating an installer:
 ./windows-island/Build.ps1 -PublishOnly
 ```
 
-Version 0.1.6 outputs:
+Version 0.1.7 outputs:
 
 ```text
-artifacts/windows-island-0.1.6/
-artifacts/CCF-Deadline-Island_0.1.6_x64-setup.exe
+artifacts/windows-island-0.1.7/
+artifacts/CCF-Deadline-Island_0.1.7_x64-setup.exe
 ```
 
 Distribute the complete publish directory when distributing the application
@@ -74,9 +74,11 @@ dotnet 'windows-island/bin/Release/net8.0-windows/CCF Deadline Island.dll' --ren
 ```
 
 The renderer runs UI and Windows integration checks without opening a visible
-desktop window. It writes page images, `geometry.json` and `checks.txt` to the
-output directory. The published executable accepts the same `--render-preview`
-argument. Release verification is recorded in [QA-0.1.6](docs/QA-0.1.6.md).
+desktop window. It writes page images, `geometry.json`, `checks.txt` and
+`text-rendering-checks.txt` to the output directory. Text checks compare glyph
+pixels across hover, press and release frames at 100%, 125%, 150% and 200% scales.
+The published executable accepts the same `--render-preview` argument.
+Release verification is recorded in [QA-0.1.7](docs/QA-0.1.7.md).
 
 ## Local storage
 

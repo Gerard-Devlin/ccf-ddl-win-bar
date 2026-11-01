@@ -45,8 +45,8 @@ public sealed class ConferenceMenu : IIslandMenu
     private readonly IslandObject _island;
     private readonly ConferenceModel _model;
     private readonly UIObject _compactContainer;
-    private readonly DWText _compactTitle;
-    private readonly DWText _compactCountdown;
+    private readonly CompactText _compactTitle;
+    private readonly CompactText _compactCountdown;
     private readonly Dictionary<string, List<UIObject>> _pages = new();
     private readonly List<UIObject> _navigation = new();
     private readonly Dictionary<string, MenuButton> _buttons = new();
@@ -89,9 +89,9 @@ public sealed class ConferenceMenu : IIslandMenu
         _model = model;
         foreach (string page in new[] { "widgets", "list", "details", "settings" }) _pages[page] = new();
         _compactContainer = new UIObject(island, Vec2.zero, HorizontalCompactSize() - 35, UIAlignment.Center) { Color = Col.Transparent };
-        _compactTitle = new DWText(_compactContainer, "CCF", Vec2.zero, UIAlignment.MiddleLeft)
+        _compactTitle = new CompactText(_compactContainer, "CCF", UIAlignment.MiddleLeft)
             { Anchor = new Vec2(0, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextMain };
-        _compactCountdown = new DWText(_compactContainer, "--", Vec2.zero, UIAlignment.MiddleRight)
+        _compactCountdown = new CompactText(_compactContainer, "--", UIAlignment.MiddleRight)
             { Anchor = new Vec2(1, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextSecond };
         UiObjects.Add(_compactTitle); UiObjects.Add(_compactCountdown);
 
@@ -191,7 +191,7 @@ public sealed class ConferenceMenu : IIslandMenu
         var row = Selected;
         string title = row?.Conference.Title ?? "CCF";
         string remaining = row is null ? (_model.Loading ? "Loading" : "--") : Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow);
-        using var paint = new SKPaint { Typeface = Res.InterRegular, TextSize = 14 };
+        using var paint = CreateTextPaint(14);
         return new Vec2(Math.Max(200, paint.MeasureText(DWText.Truncate(title, 12)) + paint.MeasureText(remaining) + 57.5f), 35);
     }
     public Vec2 IslandSizeBig() => new(320, Page switch
@@ -242,8 +242,8 @@ public sealed class ConferenceMenu : IIslandMenu
         { Page = "widgets"; _selectedId = ""; PageChanged?.Invoke(Page); }
         var next = Selected;
         _compactContainer.Size = HorizontalCompactSize() - 35;
-        _compactTitle.SilentSetText(next is null ? "CCF" : DWText.Truncate(next.Conference.Title, 12));
-        _compactCountdown.SilentSetText(next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow));
+        _compactTitle.SetContent(next is null ? "CCF" : DWText.Truncate(next.Conference.Title, 12));
+        _compactCountdown.SetContent(next is null ? (_model.Loading ? "Loading" : "--") : Remaining(next.Deadline.Utc - DateTimeOffset.UtcNow));
         _compactCountdown.Color = next is null ? Theme.TextSecond : CountdownColor(next.Deadline.Utc - DateTimeOffset.UtcNow,
             Theme.TextSecond, _model.Preferences.IsFollowed(next.Id));
         _compactTitle.SetActive(!expanded); _compactCountdown.SetActive(!expanded);
@@ -475,10 +475,15 @@ public sealed class ConferenceMenu : IIslandMenu
             }
             public void Dispose() => _canvas.RestoreToCount(_saved);
         }
-        public override void Draw(SKCanvas canvas)
+        protected void DrawBackground(SKCanvas canvas)
         {
             using var visual = BeginVisualDrawing(canvas);
             using var background = GetPaint(); background.Color = Color.Value(); canvas.DrawRoundRect(GetRect(), background);
+        }
+        public override void Draw(SKCanvas canvas)
+        {
+            // Animate the surface without rescaling/re-rasterizing its text every frame.
+            DrawBackground(canvas);
             var foreground = GetColor(!AcceptsInput ? Theme.TextThird : LeadingGlyph is ButtonGlyph.Follow or ButtonGlyph.Check
                 ? Col.Lerp(Theme.TextSecond, FollowColor, SelectionAmount) : Theme.TextSecond);
             if (Icon is not null)
@@ -489,7 +494,7 @@ public sealed class ConferenceMenu : IIslandMenu
             else if (LeadingGlyph != ButtonGlyph.None)
             {
                 const float iconSize = 14;
-                using var measure = new SKPaint { Typeface = Res.InterRegular, TextSize = FontSize };
+                using var measure = CreateTextPaint(FontSize);
                 float gap = Text.Length == 0 ? 0 : LeadingGlyph == ButtonGlyph.Reset ? 4 : 6;
                 string label = Fit(Text, measure, Size.X - 12 - iconSize - gap);
                 float groupWidth = iconSize + gap + measure.MeasureText(label);
@@ -575,8 +580,7 @@ public sealed class ConferenceMenu : IIslandMenu
         }
         public override void Draw(SKCanvas canvas)
         {
-            using var visual = BeginVisualDrawing(canvas);
-            using var background = GetPaint(); background.Color = Color.Value(); canvas.DrawRoundRect(GetRect(), background);
+            DrawBackground(canvas);
             var foreground = GetColor(Col.Lerp(Theme.TextSecond, Theme.TextMain, SelectionAmount));
             if (!FullRow)
             {
@@ -622,11 +626,9 @@ public sealed class ConferenceMenu : IIslandMenu
         public override void Draw(SKCanvas canvas)
         {
             if (Row is not { } row) return;
-            using var visual = BeginVisualDrawing(canvas);
-            using var paint = GetPaint(); paint.Color = Color.Value();
-            canvas.DrawRoundRect(GetRect(), paint);
+            DrawBackground(canvas);
             float x = Position.X, y = Position.Y;
-            using var titlePaint = new SKPaint { Typeface = Res.InterBold, TextSize = 13 };
+            using var titlePaint = CreateTextPaint(13, bold: true);
             string title = Fit(row.Heading, titlePaint, 133);
             DrawText(canvas, title, x + 11, y + 17, 13, GetColor(Theme.TextMain), bold: true);
             float badgeX = x + 18 + titlePaint.MeasureText(title);
@@ -638,6 +640,35 @@ public sealed class ConferenceMenu : IIslandMenu
             DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + 276, y + 24, 14, GetColor(CountdownColor(row.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextMain, IsFollowed)), right: true, middle: true, maxWidth: 83);
         }
     }
+    private sealed class CompactText : DWText
+    {
+        private string? _measuredText;
+        private float _measuredSize = -1;
+        private SKTypeface? _measuredFont;
+
+        public CompactText(UIObject parent, string text, UIAlignment alignment)
+            : base(parent, text, Vec2.zero, alignment) { }
+
+        public void SetContent(string value)
+        {
+            SilentSetText(value);
+            if (_measuredText == value && _measuredSize == TextSize && _measuredFont == Font) return;
+            using var paint = CreateTextPaint(TextSize);
+            paint.Typeface = Font;
+            Size = new Vec2(paint.MeasureText(value), paint.FontMetrics.Descent - paint.FontMetrics.Ascent);
+            _measuredText = value; _measuredSize = TextSize; _measuredFont = Font;
+        }
+
+        public override void Draw(SKCanvas canvas)
+        {
+            // Resolve the anchor from stable advance/font metrics, never glyph ink bounds.
+            // Draw must not change layout or the next frame's text position.
+            using var paint = CreateTextPaint(TextSize);
+            paint.Typeface = Font; paint.Color = Color.Value();
+            canvas.DrawText(Text, Position.X, Position.Y - paint.FontMetrics.Ascent, paint);
+        }
+    }
+
     private sealed class Label : UIObject
     {
         public string Text { get; set; } = "";
@@ -665,9 +696,22 @@ public sealed class ConferenceMenu : IIslandMenu
             DrawText(canvas, "Source   " + point.SourceTime + " " + point.Timezone, x, y + 59, 10.5f, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
         }
     }
+    private static SKPaint CreateTextPaint(float size, bool bold = false) => new()
+    {
+        IsAntialias = true,
+        Typeface = bold ? Res.InterBold : Res.InterRegular,
+        TextSize = size,
+        // Keep fractional glyph advances at small sizes and during spring scaling.
+        // Measurement and drawing must use the same metrics to keep icon labels centered.
+        SubpixelText = true,
+        IsLinearText = true,
+        HintingLevel = SKPaintHinting.Slight
+    };
+
     private static void DrawText(SKCanvas canvas, string value, float x, float y, float size, Col color, bool bold = false, bool centered = false, bool right = false, bool middle = false, float maxWidth = float.MaxValue)
     {
-        using var paint = new SKPaint { IsAntialias = true, Typeface = bold ? Res.InterBold : Res.InterRegular, TextSize = size, Color = color.Value(), SubpixelText = false };
+        using var paint = CreateTextPaint(size, bold);
+        paint.Color = color.Value();
         string text = Fit(value ?? "", paint, maxWidth);
         float width = paint.MeasureText(text);
         if (centered) x -= width / 2; else if (right) x -= width;

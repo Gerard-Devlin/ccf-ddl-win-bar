@@ -20,6 +20,7 @@ public static class PreviewRenderer
         renderer.Arrange(new Rect(0, 0, 700, 500));
         window.PrepareOffscreenPreview();
         int checks = UiRegressionChecks.Run(renderer);
+        int textChecks = TextRenderingChecks.Run(renderer, directory);
         int nativeChecks = NativeWindowChecks.Run();
         int startupChecks = StartupRegistrationChecks.Run();
         int placementChecks = DockNativeChecks.Run();
@@ -84,7 +85,7 @@ public static class PreviewRenderer
         renderer.Model.LaunchAtStartup = launchAtStartup;
         DynamicWin.Main.Settings.IslandMode = IslandObject.IslandMode.Notch;
         File.WriteAllText(Path.Combine(directory, "geometry.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-        File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost, {placementChecks} native primary placement and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");
+        File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI and {textChecks} temporal text checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost, {placementChecks} native primary placement and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");
         renderer.Dispose();
     }
 }
