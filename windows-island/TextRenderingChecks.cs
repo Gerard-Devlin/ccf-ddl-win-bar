@@ -27,9 +27,10 @@ internal static class TextRenderingChecks
         {
             foreach (float scale in new[] { 1f, 1.25f, 1.5f, 2f })
             {
-                foreach (string id in new[] { "filters.reset", "filters.rank.A", "filters.submission", "upcoming.row.0" })
+                foreach (string id in new[] { "details.copy", "filters.rank.A", "filters.submission", "upcoming.row.0" })
                 {
-                    menu.ShowPage(id.StartsWith("upcoming", StringComparison.Ordinal) ? "widgets" : "settings");
+                    menu.ShowPage(id.StartsWith("details", StringComparison.Ordinal) ? "details"
+                        : id.StartsWith("upcoming", StringComparison.Ordinal) ? "widgets" : "settings");
                     renderer.Input.PointerMove(0, 490);
                     renderer.Settle(true);
                     var button = (ConferenceMenu.MenuButton)menu.Controls[id];

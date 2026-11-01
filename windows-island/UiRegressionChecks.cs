@@ -74,7 +74,7 @@ internal static class UiRegressionChecks
             Check(!menu.UiObjects.Any(item => item.GetType().Name == "DWImageButton"), "no music transport controls");
             Check(!menu.Controls.ContainsKey("nav.filters") && !menu.Controls.ContainsKey("display.animations"), "settings replaces filter navigation and animation controls");
             Click("nav.settings"); renderer.Settle(true);
-            Check(menu.Page == "settings" && menu.IslandSizeBig().Y == 416, "gear opens compact unified filters and startup settings");
+            Check(menu.Page == "settings" && menu.IslandSizeBig().Y == 378, "gear opens compact unified filters and startup settings");
             var rank = (ConferenceMenu.ToggleButton)Control("filters.rank.A");
             int beforeDowns = renderer.RoutedPointerDownCount, beforeUps = renderer.RoutedPointerUpCount;
             int beforeSaves = saves;
@@ -125,8 +125,10 @@ internal static class UiRegressionChecks
             var focused = renderer.Input.FocusedTarget;
             renderer.Input.Key(Key.Tab, ModifierKeys.Shift); renderer.Input.Key(Key.Tab);
             Check(ReferenceEquals(renderer.Input.FocusedTarget, focused), "Shift+Tab and Tab traverse controls in opposite directions");
-            Click("filters.reset");
+            Click("filters.area.clear");
+            Page("widgets"); Click("empty.action"); renderer.Settle(true);
             Check(!model.Preferences.SubmissionOnly && model.Preferences.WithinDays == 365 && model.Preferences.Ccf.Count == 4, "reset restores filters");
+            Page("settings");
             Click("filters.area.clear");
             Check(model.Preferences.Categories.Count == 0 && model.Rows.Count == 0, "clearing research areas produces an empty result");
             Click("filters.area.AI");

@@ -64,7 +64,6 @@ public sealed class ConferenceMenu : IIslandMenu
     private readonly MenuButton _previousDeadlines;
     private readonly MenuButton _nextDeadlines;
     private string _selectedId = "";
-    private string _returnPage = "widgets";
     private string _detailsReturnPage = "widgets";
     private int _listOffset;
     private int _detailOffset;
@@ -162,8 +161,6 @@ public sealed class ConferenceMenu : IIslandMenu
         _startup = new ToggleButton(island, "Launch at startup", 16, 322, 288, 36, () =>
         { _model.SetLaunchAtStartup?.Invoke(!_model.LaunchAtStartup); Update(); }) { FullRow = true, FontSize = 12 };
         Register("settings.startup", _startup, "settings");
-        AddPageButton("settings", "filters.reset", "Reset filters", 16, 372, 114, 28, ResetFilters).LeadingGlyph = ButtonGlyph.Reset;
-        AddPageButton("settings", "filters.done", "Done", 236, 372, 68, 28, () => ShowPage(_returnPage));
 
         var back = AddPageButton("details", "details.back", "", 16, 50, 32, 25, () => ShowPage(_detailsReturnPage));
         back.LeadingGlyph = ButtonGlyph.Back; back.ActionName = "Back";
@@ -196,7 +193,7 @@ public sealed class ConferenceMenu : IIslandMenu
     }
     public Vec2 IslandSizeBig() => new(320, Page switch
     {
-        "settings" => 416,
+        "settings" => 378,
         "list" => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(5, _model.Rows.Count),
         "details" => _detailTotal > 2 ? 352 : _detailTotal == 2 ? 311 : 228,
         _ => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(3, _model.Rows.Count)
@@ -210,7 +207,6 @@ public sealed class ConferenceMenu : IIslandMenu
         if (page == "details" && Selected is null) page = "widgets";
         if (Page == page) { Update(); return; }
         ClearCopyFeedback();
-        if (page == "settings") _returnPage = Page is "widgets" or "list" or "details" ? Page : _returnPage;
         string selectedId = Selected?.Id ?? "";
         Page = page;
         if (page == "details") { _selectedId = selectedId; _detailOffset = 0; }

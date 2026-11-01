@@ -6,7 +6,7 @@ CCF conference deadlines in a compact desktop island for Windows.
 
 ![Windows 10 / 11](https://img.shields.io/badge/Windows-10%20%2F%2011%20x64-0078D4) [![Build](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/actions/workflows/build-island.yml/badge.svg)](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/actions/workflows/build-island.yml)
 
-[Download for Windows](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/download/island-v0.1.7/CCF-Deadline-Island_0.1.7_x64-setup.exe) · [Release notes](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases) · [Report an issue](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/issues/new)
+[Download for Windows](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/download/island-v0.1.8/CCF-Deadline-Island_0.1.8_x64-setup.exe) · [Release notes](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases) · [Report an issue](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/issues/new)
 
 </div>
 
@@ -24,7 +24,7 @@ CCF conference deadlines in a compact desktop island for Windows.
 
 ## Installation
 
-1. Download the [Windows x64 installer](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/download/island-v0.1.7/CCF-Deadline-Island_0.1.7_x64-setup.exe).
+1. Download the [Windows x64 installer](https://github.com/Gerard-Devlin/ccf-ddl-win-bar/releases/download/island-v0.1.8/CCF-Deadline-Island_0.1.8_x64-setup.exe).
 2. Run the installer, then launch **CCF Deadline Island** from the Start menu.
 3. Enable **Launch at startup** in Settings if you want it available when you sign in.
 
