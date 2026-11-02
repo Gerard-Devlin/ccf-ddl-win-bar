@@ -78,7 +78,7 @@ public sealed class RendererMain : SKElement, IDisposable
         Model = model;
         Focusable = true;
         IgnorePixelScaling = true;
-        MainIsland = new IslandObject();
+        MainIsland = new IslandObject { roundRadius = IslandDesign.ShellRadius };
         Menu = new ConferenceMenu(MainIsland, model);
         MenuManager.Instance.ActiveMenu = Menu;
         Input = new InputController(() => Menu.UiObjects, () => MainIsland.GetRect());
@@ -92,8 +92,39 @@ public sealed class RendererMain : SKElement, IDisposable
         MouseLeave += (_, _) => Input.PointerLeave();
         LostMouseCapture += (_, _) => Input.CancelCapture();
         LostKeyboardFocus += (_, _) => Input.CancelAll();
-        PreviewKeyDown += (_, e) => { if (Input.HandleKey(e.Key, Keyboard.Modifiers)) e.Handled = true; };
-        PreviewKeyUp += (_, e) => { if (Input.KeyUp(e.Key)) e.Handled = true; };
+        PreviewKeyDown += (_, e) => { if (HandleKeyDown(e.Key, Keyboard.Modifiers)) e.Handled = true; };
+        PreviewKeyUp += (_, e) => { if (HandleKeyUp(e.Key)) e.Handled = true; };
+    }
+
+    public bool HandleKeyDown(Key key, ModifierKeys modifiers)
+    {
+        // Keyboard and pointer activation obey the same layout-readiness rule.
+        if (key is Key.Space or Key.Enter && !ContentReady)
+        {
+            Input.CancelAll();
+            return true;
+        }
+        if (ContentReady && Menu.Page == "list" && modifiers == ModifierKeys.None
+            && key is Key.Up or Key.Down or Key.PageUp or Key.PageDown)
+        {
+            int steps = key is Key.PageUp or Key.PageDown ? 5 : 1;
+            int delta = key is Key.Up or Key.PageUp ? 120 : -120;
+            for (int i = 0; i < steps; i++) Menu.Scroll(delta);
+            Input.Validate();
+            InvalidateVisual();
+            return true;
+        }
+        return Input.HandleKey(key, modifiers);
+    }
+
+    public bool HandleKeyUp(Key key)
+    {
+        if (key is Key.Space or Key.Enter && !ContentReady)
+        {
+            Input.CancelAll();
+            return true;
+        }
+        return Input.KeyUp(key);
     }
 
     private Vec2 LocalPoint(MouseEventArgs args)

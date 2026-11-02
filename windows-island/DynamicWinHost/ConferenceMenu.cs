@@ -94,9 +94,10 @@ public sealed class ConferenceMenu : IIslandMenu
             { Anchor = new Vec2(1, 0.5f), TextSize = 14, Font = Res.InterRegular, Color = Theme.TextSecond };
         UiObjects.Add(_compactTitle); UiObjects.Add(_compactCountdown);
 
-        Nav("nav.upcoming", "Upcoming", 14, 84, () => ShowPage("widgets"));
-        Nav("nav.all", "All", 102, 40, () => ShowPage("list"));
-        var settings = Button("nav.settings", "", 272, 14, 28, 26, () => ShowPage("settings"));
+        Nav("nav.upcoming", "Upcoming", 16, 84, () => ShowPage("widgets"));
+        Nav("nav.all", "All", 104, 40, () => ShowPage("list"));
+        var settings = Button("nav.settings", "", 276, 14, 28, 28, () => ShowPage("settings"));
+        settings.roundRadius = 14;
         settings.Icon = Res.Settings; settings.ActionName = "Settings"; _navigation.Add(settings);
 
         for (int slot = 0; slot < 3; slot++)
@@ -121,7 +122,7 @@ public sealed class ConferenceMenu : IIslandMenu
         for (int index = 0; index < Preferences.CcfValues.Length; index++)
         {
             string rank = Preferences.CcfValues[index];
-            var chip = new ToggleButton(island, rank == "N" ? "Unranked" : rank, 16 + index * 74, 73, 66, 30, () =>
+            var chip = new ToggleButton(island, rank == "N" ? "Unranked" : rank, 16 + index * 74, 74, 66, 30, () =>
             {
                 if (_model.Preferences.Ccf.Contains(rank)) _model.Preferences.Ccf.Remove(rank);
                 else _model.Preferences.Ccf.Add(rank);
@@ -129,16 +130,16 @@ public sealed class ConferenceMenu : IIslandMenu
             });
             chip.FontSize = rank == "N" ? 9 : 11; Register("filters.rank." + rank, chip, "settings"); _ranks[rank] = chip;
         }
-        AddLabel("settings", "Research area", 16, 114, 180, 18, 11, Theme.TextSecond);
-        AddPageButton("settings", "filters.area.all", "All", 215, 110, 35, 24, () =>
+        AddLabel("settings", "Research area", 16, 116, 180, 18, 11, Theme.TextSecond);
+        AddPageButton("settings", "filters.area.all", "All", 215, 113, 35, 24, () =>
         { _model.Preferences.Categories = new(Preferences.Areas.Keys); SaveAndRefresh(); }).FontSize = 10;
-        AddPageButton("settings", "filters.area.clear", "Clear", 260, 110, 44, 24, () =>
+        AddPageButton("settings", "filters.area.clear", "Clear", 260, 113, 44, 24, () =>
         { _model.Preferences.Categories.Clear(); SaveAndRefresh(); }).FontSize = 10;
         string[] areas = { "AI", "DB", "SE", "SC", "CG", "DS", "NW", "CT", "HI", "MX" };
         for (int index = 0; index < areas.Length; index++)
         {
             string area = areas[index];
-            var chip = new ToggleButton(island, area, 16 + index % 5 * 59, 137 + index / 5 * 34, 52, 28, () =>
+            var chip = new ToggleButton(island, area, 16 + index % 5 * 59, 140 + index / 5 * 34, 52, 28, () =>
             {
                 if (_model.Preferences.Categories.Contains(area)) _model.Preferences.Categories.Remove(area);
                 else _model.Preferences.Categories.Add(area);
@@ -146,12 +147,12 @@ public sealed class ConferenceMenu : IIslandMenu
             }) { FontSize = 11 };
             Register("filters.area." + area, chip, "settings"); _areas[area] = chip;
         }
-        AddLabel("settings", "Deadline range", 16, 210, 288, 18, 11, Theme.TextSecond);
+        AddLabel("settings", "Deadline range", 16, 214, 288, 18, 11, Theme.TextSecond);
         int[] days = { 30, 90, 180, 365 };
         for (int index = 0; index < days.Length; index++)
         {
             int range = days[index];
-            var chip = new ToggleButton(island, range + " days", 16 + index * 74, 233, 66, 30, () =>
+            var chip = new ToggleButton(island, range + " days", 16 + index * 74, 238, 66, 30, () =>
             { _model.Preferences.WithinDays = range; SaveAndRefresh(); });
             chip.FontSize = 9.5f; Register("filters.range." + range, chip, "settings"); _ranges[range] = chip;
         }
@@ -162,20 +163,24 @@ public sealed class ConferenceMenu : IIslandMenu
         { _model.SetLaunchAtStartup?.Invoke(!_model.LaunchAtStartup); Update(); }) { FullRow = true, FontSize = 12 };
         Register("settings.startup", _startup, "settings");
 
-        var back = AddPageButton("details", "details.back", "", 16, 50, 32, 25, () => ShowPage(_detailsReturnPage));
+        var back = AddPageButton("details", "details.back", "", 16, 50, 28, 28, () => ShowPage(_detailsReturnPage));
+        back.roundRadius = 14;
         back.LeadingGlyph = ButtonGlyph.Back; back.ActionName = "Back";
-        _detailTitle = AddLabel("details", "", 60, 50, 244, 25, 14, Theme.TextMain, bold: true);
+        _detailTitle = AddLabel("details", "", 48, 50, 256, 28, 14, Theme.TextMain, bold: true);
         for (int i = 0; i < 2; i++)
         {
             _detailPanels[i] = new DeadlinePanel(island, 16, 87 + i * 83, 288, 75);
             UiObjects.Add(_detailPanels[i]);
         }
-        AddPageButton("details", "details.website", "Website", 16, 267, 100, 28, () => InvokeSelected(_model.OpenWebsite)).LeadingGlyph = ButtonGlyph.Website;
-        AddPageButton("details", "details.copy", "Copy", 124, 267, 78, 28, CopySelected).LeadingGlyph = ButtonGlyph.Copy;
-        AddPageButton("details", "details.follow", "Follow", 210, 267, 94, 28, ToggleFollowSelected).LeadingGlyph = ButtonGlyph.Follow;
-        _previousDeadlines = Button("details.previous", "<", 16, 313, 30, 24, () => Scroll(120));
+        AddPageButton("details", "details.website", "Website", 16, 253, 100, 28, () => InvokeSelected(_model.OpenWebsite)).LeadingGlyph = ButtonGlyph.Website;
+        AddPageButton("details", "details.copy", "Copy", 124, 253, 78, 28, CopySelected).LeadingGlyph = ButtonGlyph.Copy;
+        AddPageButton("details", "details.follow", "Follow", 210, 253, 94, 28, ToggleFollowSelected).LeadingGlyph = ButtonGlyph.Follow;
+        foreach (string id in new[] { "details.website", "details.copy", "details.follow" }) _buttons[id].roundRadius = 14;
+        _previousDeadlines = Button("details.previous", "", 16, 299, 24, 24, () => Scroll(120));
+        _previousDeadlines.LeadingGlyph = ButtonGlyph.Back; _previousDeadlines.roundRadius = 12;
         _previousDeadlines.ActionName = "Previous deadline dates";
-        _nextDeadlines = Button("details.next", ">", 274, 313, 30, 24, () => Scroll(-120));
+        _nextDeadlines = Button("details.next", "", 280, 299, 24, 24, () => Scroll(-120));
+        _nextDeadlines.LeadingGlyph = ButtonGlyph.Forward; _nextDeadlines.roundRadius = 12;
         _nextDeadlines.ActionName = "Next deadline dates";
 
         foreach (var item in UiObjects) item.SilentSetActive(false);
@@ -195,7 +200,7 @@ public sealed class ConferenceMenu : IIslandMenu
     {
         "settings" => 378,
         "list" => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(5, _model.Rows.Count),
-        "details" => _detailTotal > 2 ? 352 : _detailTotal == 2 ? 311 : 228,
+        "details" => _detailTotal > 2 ? 338 : _detailTotal == 2 ? 297 : 214,
         _ => _model.Rows.Count == 0 ? 146 : 62 + 52 * Math.Min(3, _model.Rows.Count)
     });
     public Col IslandBorderColor() => Col.Transparent;
@@ -246,8 +251,8 @@ public sealed class ConferenceMenu : IIslandMenu
         foreach (var group in _pages)
             foreach (var item in group.Value) item.SetActive(expanded && group.Key == Page);
         foreach (var item in _navigation) item.SetActive(expanded);
-        _buttons["nav.upcoming"].IsSelected = Page == "widgets";
-        _buttons["nav.all"].IsSelected = Page == "list";
+        _buttons["nav.upcoming"].IsSelected = Page == "widgets" || Page == "details" && _detailsReturnPage == "widgets";
+        _buttons["nav.all"].IsSelected = Page == "list" || Page == "details" && _detailsReturnPage == "list";
         _buttons["nav.settings"].IsSelected = Page == "settings";
         for (int i = 0; i < 3; i++)
         {
@@ -270,6 +275,7 @@ public sealed class ConferenceMenu : IIslandMenu
         bool listPage = Page is "widgets" or "list";
         bool empty = _model.Rows.Count == 0;
         _empty.SetActive(expanded && listPage && empty);
+        _empty.Position = new Vec2(16, _model.Loading ? 78 : 65);
         _empty.Text = _model.Loading ? "Loading conferences..." : HasFilters() ? "No matching conferences" : "No upcoming conferences";
         _emptyAction.SetActive(expanded && listPage && empty && !_model.Loading);
         _emptyAction.Text = HasFilters() ? "Reset filters" : "Retry";
@@ -296,7 +302,7 @@ public sealed class ConferenceMenu : IIslandMenu
         _buttons["details.copy"].IsSelected = copied;
         _detailOffset = Math.Clamp(_detailOffset, 0, Math.Max(0, points.Count - 2));
         _detailTitle.Text = selected?.Heading ?? "";
-        float actionY = points.Count <= 1 ? 184 : 267;
+        float actionY = points.Count <= 1 ? 170 : 253;
         _buttons["details.website"].Position = new Vec2(16, actionY);
         _buttons["details.copy"].Position = new Vec2(124, actionY);
         _buttons["details.follow"].Position = new Vec2(210, actionY);
@@ -377,7 +383,7 @@ public sealed class ConferenceMenu : IIslandMenu
     }
 
     private void Nav(string id, string text, float x, float width, Action action)
-    { var button = Button(id, text, x, 14, width, 26, action); button.FontSize = 11; _navigation.Add(button); }
+    { var button = Button(id, text, x, 14, width, 28, action); button.FontSize = 11; button.roundRadius = 14; _navigation.Add(button); }
     private MenuButton Button(string id, string text, float x, float y, float width, float height, Action action)
     { var button = new MenuButton(_island, text, x, y, width, height, action); Register(id, button); return button; }
     private MenuButton AddPageButton(string page, string id, string text, float x, float y, float width, float height, Action action)
@@ -391,7 +397,7 @@ public sealed class ConferenceMenu : IIslandMenu
     private Label AddLabel(string page, string text, float x, float y, float width, float height, float size, Col color, bool bold = false, bool center = false)
     { var label = new Label(_island, x, y, width, height, size, color) { Text = text, Bold = bold, Center = center }; AddPageObject(page, label); return label; }
 
-    public enum ButtonGlyph { None, Website, Copy, Calendar, Back, Reset, Follow, Check }
+    public enum ButtonGlyph { None, Website, Copy, Calendar, Back, Reset, Follow, Check, Forward }
 
     public class MenuButton : DWButton
     {
@@ -410,7 +416,7 @@ public sealed class ConferenceMenu : IIslandMenu
             : base(island, new Vec2(x, y), new Vec2(width, height), action, UIAlignment.TopLeft)
         {
             Anchor = Vec2.zero; Text = text; ActionName = text;
-            roundRadius = 8; normalScaleMulti = hoverScaleMulti = clickScaleMulti = Vec2.one;
+            roundRadius = IslandDesign.ControlRadius; normalScaleMulti = hoverScaleMulti = clickScaleMulti = Vec2.one;
             normalColor = Col.Transparent; hoverColor = Col.White.Override(a: 0.08f); clickColor = Col.White.Override(a: 0.14f);
         }
         protected virtual void ConfigureColors()
@@ -476,6 +482,9 @@ public sealed class ConferenceMenu : IIslandMenu
             using var visual = BeginVisualDrawing(canvas);
             using var background = GetPaint(); background.Color = Color.Value(); canvas.DrawRoundRect(GetRect(), background);
         }
+        // Drawing, native hit testing and the keyboard focus outline share the same
+        // fractional bounds and radius, including circular/capsule controls.
+        public override SKRoundRect GetRect() => IslandDesign.RoundedRect(Position, Size, roundRadius);
         public override void Draw(SKCanvas canvas)
         {
             // Animate the surface without rescaling/re-rasterizing its text every frame.
@@ -534,6 +543,11 @@ public sealed class ConferenceMenu : IIslandMenu
                     path.MoveTo(x + 6.5f, y + 3); path.LineTo(x + 2.5f, y + 7); path.LineTo(x + 6.5f, y + 11);
                     canvas.DrawPath(path, paint);
                     break;
+                case ButtonGlyph.Forward:
+                    path.MoveTo(x + 2.5f, y + 7); path.LineTo(x + 11.5f, y + 7);
+                    path.MoveTo(x + 7.5f, y + 3); path.LineTo(x + 11.5f, y + 7); path.LineTo(x + 7.5f, y + 11);
+                    canvas.DrawPath(path, paint);
+                    break;
                 case ButtonGlyph.Website:
                     path.MoveTo(x + 7, y + 2); path.LineTo(x + 12, y + 2); path.LineTo(x + 12, y + 7);
                     path.MoveTo(x + 12, y + 2); path.LineTo(x + 6.5f, y + 7.5f);
@@ -559,7 +573,16 @@ public sealed class ConferenceMenu : IIslandMenu
     }
     public sealed class ToggleButton : MenuButton
     {
-        public bool FullRow { get; set; }
+        private bool _fullRow;
+        public bool FullRow
+        {
+            get => _fullRow;
+            set
+            {
+                _fullRow = value;
+                roundRadius = value ? Math.Min(IslandDesign.CardRadius, Size.Y / 2) : IslandDesign.ControlRadius;
+            }
+        }
         public ToggleButton(IslandObject island, string text, float x, float y, float width, float height, Action action) : base(island, text, x, y, width, height, action) { }
         protected override void ConfigureColors()
         {
@@ -584,7 +607,7 @@ public sealed class ConferenceMenu : IIslandMenu
                     centered: true, middle: true, maxWidth: Size.X - 12);
                 return;
             }
-            const float switchWidth = 40, switchHeight = 22, sidePadding = 12;
+            const float switchWidth = 40, switchHeight = 22, sidePadding = IslandDesign.ContentPadding;
             float switchX = Position.X + Size.X - sidePadding - switchWidth;
             float switchY = Position.Y + (Size.Y - switchHeight) / 2;
             using var track = GetPaint(); track.Color = GetColor(Col.Lerp(Col.FromHex("#4a4a4a"), Theme.Primary, SelectionAmount)).Value();
@@ -604,7 +627,7 @@ public sealed class ConferenceMenu : IIslandMenu
         public string BoundId => Row?.Id ?? "";
         public ConferenceRow(IslandObject island, float x, float y, Action<string> select) : base(island, "", x, y, 288, 48, () => { })
         {
-            _select = select; roundRadius = 11;
+            _select = select; roundRadius = IslandDesign.CardRadius;
             clickCallback = () => { if (Row is not null) _select(Row.Id); };
         }
         public void Bind(DeadlineRow? row)
@@ -625,15 +648,16 @@ public sealed class ConferenceMenu : IIslandMenu
             DrawBackground(canvas);
             float x = Position.X, y = Position.Y;
             using var titlePaint = CreateTextPaint(13, bold: true);
-            string title = Fit(row.Heading, titlePaint, 133);
-            DrawText(canvas, title, x + 11, y + 17, 13, GetColor(Theme.TextMain), bold: true);
-            float badgeX = x + 18 + titlePaint.MeasureText(title);
-            using var badge = GetPaint(); badge.Color = GetColor(Theme.WidgetBackground).Value(); canvas.DrawRoundRect(SKRect.Create(badgeX, y + 6, 35, 16), 5, 5, badge);
-            DrawText(canvas, "CCF " + row.Rank, badgeX + 17.5f, y + 14, 9, GetColor(Theme.TextSecond), centered: true, middle: true);
+            string title = Fit(row.Heading, titlePaint, 128);
+            DrawText(canvas, title, x + IslandDesign.ContentPadding, y + 15, 13, GetColor(Theme.TextMain), bold: true, middle: true);
+            float badgeX = x + IslandDesign.ContentPadding + titlePaint.MeasureText(title) + 6;
+            using var badge = GetPaint(); badge.Color = GetColor(Theme.WidgetBackground).Value();
+            canvas.DrawRoundRect(SKRect.Create(badgeX, y + 7, 35, 16), IslandDesign.BadgeRadius, IslandDesign.BadgeRadius, badge);
+            DrawText(canvas, "CCF " + row.Rank, badgeX + 17.5f, y + 15, 9, GetColor(Theme.TextSecond), centered: true, middle: true);
             string kind = row.Deadline.Kind == "abstract" ? "Abstract" : "Submission";
             string metadata = kind + " · " + row.Deadline.Utc.ToLocalTime().ToString("MMM dd, HH:mm", CultureInfo.InvariantCulture);
-            DrawText(canvas, metadata, x + 11, y + 36, 10.5f, GetColor(Theme.TextSecond), maxWidth: 176);
-            DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + 276, y + 24, 14, GetColor(CountdownColor(row.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextMain, IsFollowed)), right: true, middle: true, maxWidth: 83);
+            DrawText(canvas, metadata, x + IslandDesign.ContentPadding, y + 37, 10.5f, GetColor(Theme.TextSecond), maxWidth: 172);
+            DrawText(canvas, Remaining(row.Deadline.Utc - DateTimeOffset.UtcNow), x + Size.X - IslandDesign.ContentPadding, y + 24, 14, GetColor(CountdownColor(row.Deadline.Utc - DateTimeOffset.UtcNow, Theme.TextMain, IsFollowed)), right: true, middle: true, maxWidth: 83);
         }
     }
     private sealed class CompactText : DWText
@@ -680,16 +704,20 @@ public sealed class ConferenceMenu : IIslandMenu
     {
         public DeadlinePoint? Point { get; set; }
         public bool IsFollowed { get; set; }
-        public DeadlinePanel(IslandObject island, float x, float y, float width, float height) : base(island, new Vec2(x, y), new Vec2(width, height), UIAlignment.TopLeft) { Anchor = Vec2.zero; roundRadius = 11; }
+        public DeadlinePanel(IslandObject island, float x, float y, float width, float height) : base(island, new Vec2(x, y), new Vec2(width, height), UIAlignment.TopLeft) { Anchor = Vec2.zero; roundRadius = IslandDesign.CardRadius; }
+        public override SKRoundRect GetRect() => IslandDesign.RoundedRect(Position, Size, roundRadius);
         public override void Draw(SKCanvas canvas)
         {
             if (Point is not { } point) return;
             using var background = GetPaint(); background.Color = GetColor(Theme.WidgetBackground).Value(); canvas.DrawRoundRect(GetRect(), background);
-            float x = Position.X + 12, y = Position.Y;
+            float x = Position.X + IslandDesign.ContentPadding, y = Position.Y;
             DrawText(canvas, point.Kind == "abstract" ? "Abstract deadline" : "Submission deadline", x, y + 19, 11.5f, GetColor(Theme.TextMain), bold: true, maxWidth: 174);
-            DrawText(canvas, Remaining(point.Utc - DateTimeOffset.UtcNow), Position.X + Size.X - 12, y + 19, 10.5f, GetColor(CountdownColor(point.Utc - DateTimeOffset.UtcNow, Theme.TextSecond, IsFollowed)), right: true);
-            DrawText(canvas, "Local   " + point.Utc.ToLocalTime().ToString("MMM dd, HH:mm  zzz", CultureInfo.InvariantCulture), x, y + 40, 11, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
-            DrawText(canvas, "Source   " + point.SourceTime + " " + point.Timezone, x, y + 59, 10.5f, GetColor(Theme.TextSecond), maxWidth: Size.X - 24);
+            DrawText(canvas, Remaining(point.Utc - DateTimeOffset.UtcNow), Position.X + Size.X - IslandDesign.ContentPadding, y + 19, 10.5f, GetColor(CountdownColor(point.Utc - DateTimeOffset.UtcNow, Theme.TextSecond, IsFollowed)), right: true);
+            float valueX = x + 44, valueWidth = Size.X - IslandDesign.ContentPadding * 2 - 44;
+            DrawText(canvas, "Local", x, y + 40, 10.5f, GetColor(Theme.TextSecond));
+            DrawText(canvas, point.Utc.ToLocalTime().ToString("MMM dd, HH:mm  zzz", CultureInfo.InvariantCulture), valueX, y + 40, 11, GetColor(Theme.TextSecond), maxWidth: valueWidth);
+            DrawText(canvas, "Source", x, y + 59, 10.5f, GetColor(Theme.TextSecond));
+            DrawText(canvas, point.SourceTime + " " + point.Timezone, valueX, y + 59, 10.5f, GetColor(Theme.TextSecond), maxWidth: valueWidth);
         }
     }
     private static SKPaint CreateTextPaint(float size, bool bold = false) => new()

@@ -30,11 +30,15 @@ public static class PreviewRenderer
         var copyAction = renderer.Model.CopyTime;
         bool submissionOnly = renderer.Model.Preferences.SubmissionOnly;
         bool launchAtStartup = renderer.Model.LaunchAtStartup;
-        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "settings-switches-on", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details", "copy-feedback" })
+        bool loading = renderer.Model.Loading;
+        var ranks = renderer.Model.Preferences.Ccf;
+        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "settings-switches-on", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details", "copy-feedback", "loading", "empty", "empty-filters", "long-title" })
         {
             DynamicWin.Main.Settings.IslandMode = IslandObject.IslandMode.Notch;
             bool followed = page.StartsWith("followed", StringComparison.Ordinal);
             bool urgent = page.StartsWith("followed", StringComparison.Ordinal) || page.StartsWith("urgent", StringComparison.Ordinal);
+            renderer.Model.Loading = page == "loading";
+            renderer.Model.Preferences.Ccf = page == "empty-filters" ? new() : ranks;
             renderer.Model.Preferences.SubmissionOnly = page == "settings-switches-on" || submissionOnly;
             renderer.Model.LaunchAtStartup = page == "settings-switches-on" || launchAtStartup;
             renderer.Model.Preferences.FollowedConferenceIds = followed ? new() { rows[0].Id } : followedIds;
@@ -46,8 +50,10 @@ public static class PreviewRenderer
                 var conference = rows[0].Conference with { Deadlines = new() { deadline } };
                 renderer.Model.Rows = new[] { new CcfDeadlineIsland.Models.DeadlineRow(conference, deadline, DateTimeOffset.UtcNow) };
             }
+            else if (page is "loading" or "empty" or "empty-filters") renderer.Model.Rows = Array.Empty<CcfDeadlineIsland.Models.DeadlineRow>();
+            else if (page == "long-title") renderer.Model.Rows = new[] { rows[0] with { Conference = rows[0].Conference with { Title = "International Conference on Software Engineering" } } };
             else renderer.Model.Rows = page == "list-two" ? rows.Take(2).ToArray() : rows;
-            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" => "widgets", "settings-switches-on" => "settings", "list-two" => "list", "urgent-details" or "followed-details" or "copy-feedback" => "details", _ => page });
+            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" or "loading" or "empty" or "empty-filters" or "long-title" => "widgets", "settings-switches-on" => "settings", "list-two" => "list", "urgent-details" or "followed-details" or "copy-feedback" => "details", _ => page });
             renderer.Settle(page is not ("compact" or "urgent-compact" or "followed-compact"));
             if (page == "copy-feedback")
             {
@@ -83,6 +89,8 @@ public static class PreviewRenderer
         renderer.Model.CopyTime = copyAction;
         renderer.Model.Preferences.SubmissionOnly = submissionOnly;
         renderer.Model.LaunchAtStartup = launchAtStartup;
+        renderer.Model.Loading = loading;
+        renderer.Model.Preferences.Ccf = ranks;
         DynamicWin.Main.Settings.IslandMode = IslandObject.IslandMode.Notch;
         File.WriteAllText(Path.Combine(directory, "geometry.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI and {textChecks} temporal text checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost, {placementChecks} native primary placement and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");

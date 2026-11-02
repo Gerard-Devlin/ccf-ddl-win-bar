@@ -31,11 +31,11 @@ Publish the application without creating an installer:
 ./windows-island/Build.ps1 -PublishOnly
 ```
 
-Version 0.1.8 outputs:
+Version 0.1.9 outputs:
 
 ```text
-artifacts/windows-island-0.1.8/
-artifacts/CCF-Deadline-Island_0.1.8_x64-setup.exe
+artifacts/windows-island-0.1.9/
+artifacts/CCF-Deadline-Island_0.1.9_x64-setup.exe
 ```
 
 Distribute the complete publish directory when distributing the application
@@ -78,7 +78,8 @@ desktop window. It writes page images, `geometry.json`, `checks.txt` and
 `text-rendering-checks.txt` to the output directory. Text checks compare glyph
 pixels across hover, press and release frames at 100%, 125%, 150% and 200% scales.
 The published executable accepts the same `--render-preview` argument.
-Release verification is recorded in [QA-0.1.8](docs/QA-0.1.8.md).
+Release verification is recorded in [QA-0.1.9](docs/QA-0.1.9.md).
+Shape and spacing references are documented in [design notes](docs/DESIGN.md).
 
 ## Local storage
 

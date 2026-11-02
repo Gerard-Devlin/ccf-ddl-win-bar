@@ -73,6 +73,13 @@ internal static class UiRegressionChecks
             Check(menu.IslandSizeBig().X == 320 && menu.IslandSizeBig().Y == 218, "three-conference layout is 320x218 DIP");
             Check(!menu.UiObjects.Any(item => item.GetType().Name == "DWImageButton"), "no music transport controls");
             Check(!menu.Controls.ContainsKey("nav.filters") && !menu.Controls.ContainsKey("display.animations"), "settings replaces filter navigation and animation controls");
+            var cornerRow = Control("upcoming.row.0").GetInputRect().Rect;
+            Check(!renderer.RoutePointerDown(cornerRow.Left + 2, cornerRow.Top + 2)
+                && !renderer.RoutePointerUp(cornerRow.Left + 2, cornerRow.Top + 2),
+                "transparent rounded card corner does not capture a click");
+            Check(renderer.RoutePointerDown(cornerRow.Left + 9, cornerRow.Top + 9),
+                "visible rounded card corner captures routed input");
+            Check(!renderer.RoutePointerUp(0, 490), "rounded-corner press cancels when released outside");
             Click("nav.settings"); renderer.Settle(true);
             Check(menu.Page == "settings" && menu.IslandSizeBig().Y == 378, "gear opens compact unified filters and startup settings");
             var rank = (ConferenceMenu.ToggleButton)Control("filters.rank.A");
@@ -218,7 +225,12 @@ internal static class UiRegressionChecks
                     for (int index = 0; index < count; index++)
                     {
                         var bounds = Control(prefix + index).GetInputRect().Rect;
-                        Check(bounds.Left >= island.Left && bounds.Right <= island.Right && bounds.Top >= island.Top + 48 && bounds.Bottom <= island.Bottom - 16, "row stays inside shell with bottom padding");
+                        // The shell's spring settles within the same half-DIP tolerance
+                        // as ContentReady; card geometry now retains fractional bounds.
+                        const float settleTolerance = .5f;
+                        Check(bounds.Left >= island.Left - settleTolerance && bounds.Right <= island.Right + settleTolerance
+                            && bounds.Top >= island.Top + 48 - settleTolerance && bounds.Bottom <= island.Bottom - 16 + settleTolerance,
+                            "row stays inside shell with bottom padding");
                     }
                 }
             }
@@ -228,7 +240,7 @@ internal static class UiRegressionChecks
 
             var singlePoint = conferences[0] with { Id = "single-date", Deadlines = new() { later } };
             model.Rows = new Preferences().Visible(new[] { singlePoint }, now); Page("widgets"); Click("upcoming.row.0"); renderer.Settle(true);
-            Check(menu.IslandSizeBig().Y == 228 && Control("details.follow").GetInputRect().Rect.Bottom <= renderer.MainIsland.GetRect().Rect.Bottom - 15,
+            Check(menu.IslandSizeBig().Y == 214 && Control("details.follow").GetInputRect().Rect.Bottom <= renderer.MainIsland.GetRect().Rect.Bottom - 15,
                 "single deadline details shrink around their actions without empty card space");
 
             var points = Enumerable.Range(0, 6).Select(index => new DeadlinePoint("submission", "cycle-" + index, "UTC", now.AddDays(index + 10), null)).ToList();
@@ -249,6 +261,22 @@ internal static class UiRegressionChecks
             model.Rows = new Preferences().Visible(allConferences, now); Page("list");
             Check(menu.IslandSizeBig().Y == 322, "all-conferences page has separate scrollable height");
             Check(((ConferenceMenu.ConferenceRow)Control("list.row.0")).BoundId == "scroll-0", "all-conferences list starts at first row");
+            Click("list.row.0"); renderer.Settle(true);
+            Check(((ConferenceMenu.MenuButton)Control("nav.all")).IsSelected
+                && !((ConferenceMenu.MenuButton)Control("nav.upcoming")).IsSelected,
+                "details retain the originating All navigation highlight");
+            Click("details.back"); renderer.Settle(true);
+            Check(renderer.HandleKeyDown(Key.PageDown, ModifierKeys.None)
+                && ((ConferenceMenu.ConferenceRow)Control("list.row.0")).BoundId == "scroll-3",
+                "PageDown makes later conference rows reachable from the keyboard");
+            Check(renderer.HandleKeyDown(Key.PageUp, ModifierKeys.None)
+                && ((ConferenceMenu.ConferenceRow)Control("list.row.0")).BoundId == "scroll-0",
+                "PageUp returns to the beginning and clamps");
+            Check(renderer.HandleKeyDown(Key.Down, ModifierKeys.None)
+                && ((ConferenceMenu.ConferenceRow)Control("list.row.0")).BoundId == "scroll-1"
+                && renderer.HandleKeyDown(Key.Up, ModifierKeys.None)
+                && ((ConferenceMenu.ConferenceRow)Control("list.row.0")).BoundId == "scroll-0",
+                "arrow keys scroll the list one row at a time");
             menu.Scroll(-120); renderer.Settle(true);
             Check(((ConferenceMenu.ConferenceRow)Control("list.row.0")).BoundId == "scroll-1", "all-conferences list scrolls through later rows");
             for (int i = 0; i < 10; i++) menu.Scroll(-120);
@@ -272,6 +300,12 @@ internal static class UiRegressionChecks
             }
             Check(!renderer.RoutePointerDown(350, 16) && !renderer.RoutePointerUp(350, 16) && menu.Page == "widgets",
                 "opening click on the compact shell cannot activate moving navigation controls");
+            menu.ShowPage("settings"); renderer.Settle(true, 1);
+            Focus("filters.rank.A");
+            int beforeAnimationKey = saves;
+            Check(!renderer.ContentReady && renderer.HandleKeyDown(Key.Enter, ModifierKeys.None)
+                && renderer.HandleKeyUp(Key.Enter) && saves == beforeAnimationKey,
+                "keyboard activation cannot trigger controls during shell expansion");
 
             model.Rows = originalRows; renderer.Settle(false);
             Check(menu.IslandSize().X >= 200 && menu.IslandSize().Y == 35, "compact shell remains horizontal at the top");

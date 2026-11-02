@@ -117,7 +117,7 @@ public partial class MainWindow : Window
     private void WindowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Escape) { Collapse(); e.Handled = true; return; }
-        if (Renderer.Input.HandleKey(e.Key, Keyboard.Modifiers)) { e.Handled = true; return; }
+        if (Renderer.HandleKeyDown(e.Key, Keyboard.Modifiers)) { e.Handled = true; return; }
         switch (e.Key) { case Key.F5: _ = RefreshAsync(); break; default: return; }
         e.Handled = true;
     }
