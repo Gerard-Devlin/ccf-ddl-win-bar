@@ -235,6 +235,12 @@ public sealed class InputController : IDisposable
         yield return root;
         foreach (var node in root.LocalObjects.SelectMany(Tree)) yield return node;
     }
+    public void FocusAccessible(UIObject target)
+    {
+        if (!IsLive(target)) return;
+        CancelCapture(); CancelKeyboardPress(); Focus(target, true);
+    }
+
     private void Focus(UIObject target, bool keyboard)
     {
         _focused = target;

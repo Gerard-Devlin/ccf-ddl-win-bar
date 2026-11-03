@@ -81,7 +81,7 @@ internal static class UiRegressionChecks
                 "visible rounded card corner captures routed input");
             Check(!renderer.RoutePointerUp(0, 490), "rounded-corner press cancels when released outside");
             Click("nav.settings"); renderer.Settle(true);
-            Check(menu.Page == "settings" && menu.IslandSizeBig().Y == 378, "gear opens compact unified filters and startup settings");
+            Check(menu.Page == "settings" && menu.IslandSizeBig().Y == 426, "gear opens compact unified filters and startup settings");
             var rank = (ConferenceMenu.ToggleButton)Control("filters.rank.A");
             int beforeDowns = renderer.RoutedPointerDownCount, beforeUps = renderer.RoutedPointerUpCount;
             int beforeSaves = saves;
@@ -93,7 +93,7 @@ internal static class UiRegressionChecks
             Check(model.Preferences.Ccf.Contains("A") && model.Rows.Count == conferences.Length && rank.IsSelected, "continuous rank switching retains exact state");
             Check(saves == beforeSaves + 14 && renderer.RoutedPointerDownCount == beforeDowns + 14 && renderer.RoutedPointerUpCount == beforeUps + 14, "one save per fast routed down/up pair");
             renderer.Input.PointerMove(Center("filters.rank.A")); rank.Update(1f / 60);
-            Check(rank.IsSelected && rank.IsHovering && rank.hoverColor.a > rank.normalColor.a, "selected chip remains distinct while hovered");
+            Check(rank.IsSelected && rank.IsHovering && rank.hoverColor.Value() != rank.normalColor.Value(), "selected chip remains distinct while hovered");
             var rankPoint = Center("filters.rank.A");
             renderer.RoutePointerUp(rankPoint.X, rankPoint.Y);
             Check(saves == beforeSaves + 14, "uncaptured duplicate release does not activate");

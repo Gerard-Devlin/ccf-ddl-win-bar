@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private Forms.NotifyIcon? _tray;
     private bool _quitting, _hiddenByUser, _modalOpen, _contextMenuOpen;
     private readonly IDisposable _placement;
+    private double _accessibilityScale = -1;
     private string _error = "", _startupError = "";
     public RendererMain Renderer { get; }
     public void PrepareOffscreenPreview() { _snapshot = DemoSnapshot(); UpdateData(); }
@@ -58,7 +59,12 @@ public partial class MainWindow : Window
         Renderer.ContextMenu = MakeContextMenu();
         Renderer.ContextMenuOpening += (_, _) => _contextMenuOpen = true;
         Renderer.ContextMenuClosing += (_, _) => _contextMenuOpen = false;
-        RenderRoot.Children.Add(Renderer);
+        var viewport = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = Renderer,
+            Focusable = false, CanContentScroll = false };
+        Renderer.Height = 500;
+        RenderRoot.Children.Add(viewport);
+        ApplyAccessibilityPreferences();
         _placement = WindowPlacement.AttachPrimary(this);
         Renderer.GeometryChanged += RendererGeometryChanged;
         DynamicWin.Main.Settings.IslandMode = DynamicWin.UI.UIElements.IslandObject.IslandMode.Notch;
@@ -83,7 +89,7 @@ public partial class MainWindow : Window
     {
         if (message != 0x0084 || _preview) return IntPtr.Zero;
         int x = unchecked((short)(lParam.ToInt64() & 0xffff)), y = unchecked((short)((lParam.ToInt64() >> 16) & 0xffff));
-        var point = PointFromScreen(new System.Windows.Point(x, y));
+        var point = Renderer.PointFromScreen(new System.Windows.Point(x, y));
         if (!Renderer.MainIsland.GetInteractionRect().Contains(SKRect.Create((float)point.X, (float)point.Y, 1, 1))) { handled = true; return new IntPtr(-1); }
         return IntPtr.Zero;
     }
@@ -97,6 +103,8 @@ public partial class MainWindow : Window
 
     private void RendererGeometryChanged()
     {
+        Renderer.Height = Math.Max(500, Renderer.Menu.IslandSizeBig().Y + 50);
+        if (!Renderer.MainIsland.IsHovering && Renderer.Parent is ScrollViewer scroll) scroll.ScrollToTop();
         if (!IsLoaded) return;
         try
         {
@@ -142,31 +150,70 @@ public partial class MainWindow : Window
     private async Task RefreshAsync()
     {
         if (_model.Loading || _demo) return;
-        _model.Loading = true; UpdateStatus();
+        _model.Loading = true; UpdateStatus(); Renderer.Menu.Notify("Refreshing conferences…");
         try { _snapshot = await _service.FetchAsync(cancellation: _shutdown.Token); _error = ""; if (!_service.SaveCache(_snapshot)) _error = "Cache could not be saved; current data remains available."; }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { return; }
         catch (Exception error) { _error = error.Message; }
-        finally { _model.Loading = false; if (!_shutdown.IsCancellationRequested) UpdateData(); }
+        finally
+        {
+            _model.Loading = false;
+            if (!_shutdown.IsCancellationRequested)
+            {
+                UpdateData(); Renderer.Menu.Notify(_error.Length > 0
+                    ? (_snapshot is null ? "Could not refresh. Press F5 to retry." : "Offline · saved deadlines retained")
+                    : "Conferences updated");
+            }
+        }
     }
     private void UpdateData()
     {
         _model.Rows = _model.Preferences.Visible(_snapshot?.Conferences ?? [], DateTimeOffset.UtcNow);
         _model.SelectedIndex = Math.Clamp(_model.SelectedIndex, 0, Math.Max(0, _model.Rows.Count - 1));
-        DynamicWin.Main.Settings.AllowAnimation = true;
+        DynamicWin.Main.Settings.AllowAnimation = SystemParameters.ClientAreaAnimation;
         UpdateStatus();
     }
     private void UpdateStatus()
     {
         string updated = _snapshot is null ? "No saved data" : $"Updated {_snapshot.UpdatedAt.ToLocalTime():HH:mm}";
         _model.Status = _demo ? "Preview · sample conferences" : _model.Loading ? "Refreshing..." : _error.Length > 0 ? $"Offline · {updated}" : updated;
-        Renderer.ToolTip = _startupError.Length > 0 ? _startupError : _error.Length > 0 ? _error : null;
+        if (_startupError.Length > 0) _model.Status = _startupError;
+        else if (_error.Length > 0) _model.Status += "\n" + _error;
     }
     private void Tick()
     {
+        ApplyAccessibilityPreferences();
         UpdateData();
         MaintainTopmost();
         WriteDiagnostics();
     }
+    private void ApplyAccessibilityPreferences()
+    {
+        DynamicWin.Main.Settings.AllowAnimation = SystemParameters.ClientAreaAnimation;
+        double scale = 1;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Accessibility");
+            if (key?.GetValue("TextScaleFactor") is int percent) scale = Math.Clamp(percent / 100.0, 1, 2.25);
+        }
+        catch (Exception error) when (error is System.Security.SecurityException or UnauthorizedAccessException)
+        { Debug.WriteLine(error.Message); }
+        ApplyAccessibilityScale(scale);
+    }
+
+    internal void ApplyAccessibilityScale(double scale)
+    {
+        scale = Math.Clamp(scale, 1, 2.25);
+        if (Math.Abs(scale - _accessibilityScale) < .001) return;
+        _accessibilityScale = scale;
+        Renderer.LayoutTransform = new System.Windows.Media.ScaleTransform(scale, scale);
+        // Enlarge the whole reading surface so text and click targets stay aligned.
+        // Hidden-bar scrolling remains available on small screens at large text sizes.
+        var work = SystemParameters.WorkArea;
+        Width = Math.Min(700 * scale, work.Width);
+        Height = Math.Min(500 * scale, work.Height);
+        RendererGeometryChanged();
+    }
+
     private void MaintainTopmost()
     {
         if (!IsLoaded || _quitting || _hiddenByUser || _modalOpen || _contextMenuOpen) return;
@@ -187,7 +234,9 @@ public partial class MainWindow : Window
             });
             var placement = WindowPlacement.GetPrimaryDiagnostics(this);
             var island = Renderer.MainIsland.GetRect().Rect;
-            double islandCenterPixels = placement.ClientScreen.Left + island.MidX * placement.Dpi / 96.0;
+            var topLeft = Renderer.PointToScreen(new Point(island.Left, island.Top));
+            var bottomRight = Renderer.PointToScreen(new Point(island.Right, island.Bottom));
+            double islandCenterPixels = (topLeft.X + bottomRight.X) / 2;
             var snapshot = new
             {
                 version = typeof(MainWindow).Assembly.GetName().Version?.ToString(),
@@ -196,10 +245,8 @@ public partial class MainWindow : Window
                 primaryPlacement = placement,
                 island = new { left = island.Left, top = island.Top, width = island.Width, height = island.Height,
                     centerPixels = islandCenterPixels, centerDeviationPixels = islandCenterPixels - placement.PrimaryCenterX,
-                    leftPixels = placement.ClientScreen.Left + island.Left * placement.Dpi / 96.0,
-                    rightPixels = placement.ClientScreen.Left + island.Right * placement.Dpi / 96.0,
-                    topPixels = placement.ClientScreen.Top + island.Top * placement.Dpi / 96.0,
-                    bottomPixels = placement.ClientScreen.Top + island.Bottom * placement.Dpi / 96.0 },
+                    leftPixels = topLeft.X, rightPixels = bottomRight.X,
+                    topPixels = topLeft.Y, bottomPixels = bottomRight.Y },
                 input = new { downs = Renderer.RoutedPointerDownCount, ups = Renderer.RoutedPointerUpCount,
                     focused = Renderer.Input.FocusedTarget?.InputIdentity, captured = Renderer.Input.CapturedTarget?.InputIdentity,
                     pinned = Renderer.ForceExpanded, dismissed = Renderer.ForceCollapsed },
@@ -221,7 +268,7 @@ public partial class MainWindow : Window
     {
         if (Selected is not { } item || !Uri.TryCreate(item.Website, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) return;
         try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
-        catch (Exception error) when (error is Win32Exception or InvalidOperationException) { _model.Status = "Could not open website"; Renderer.ToolTip = error.Message; }
+        catch (Exception error) when (error is Win32Exception or InvalidOperationException) { _model.Status = "Could not open website"; Renderer.ToolTip = error.Message; Renderer.Menu.Notify("Could not open website. Try again."); }
     }
     private bool CopyTime()
     {
@@ -260,6 +307,7 @@ public partial class MainWindow : Window
         if (_preview || StartupRegistration.SetEnabled(enabled))
         { _model.LaunchAtStartup = enabled; _startupError = ""; }
         else _startupError = "Could not change launch at startup.";
+        if (_startupError.Length > 0) Renderer.Menu.Notify(_startupError);
         Renderer.Menu.Update();
         UpdateStatus();
     }

@@ -20,7 +20,10 @@ public static class PreviewRenderer
         renderer.Arrange(new Rect(0, 0, 700, 500));
         window.PrepareOffscreenPreview();
         int checks = UiRegressionChecks.Run(renderer);
+        renderer.Menu.ClearFeedback();
         int textChecks = TextRenderingChecks.Run(renderer, directory);
+        int accessibilityChecks = AccessibilityChecks.Run(renderer);
+        int accessibilityLayoutChecks = AccessibilityLayoutChecks.Run(window);
         int nativeChecks = NativeWindowChecks.Run();
         int startupChecks = StartupRegistrationChecks.Run();
         int placementChecks = DockNativeChecks.Run();
@@ -32,7 +35,7 @@ public static class PreviewRenderer
         bool launchAtStartup = renderer.Model.LaunchAtStartup;
         bool loading = renderer.Model.Loading;
         var ranks = renderer.Model.Preferences.Ccf;
-        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "settings-switches-on", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details", "copy-feedback", "loading", "empty", "empty-filters", "long-title" })
+        foreach (string page in new[] { "widgets", "list", "list-two", "details", "settings", "settings-switches-on", "compact", "urgent", "urgent-compact", "urgent-details", "followed", "followed-compact", "followed-details", "copy-feedback", "loading", "empty", "empty-filters", "long-title", "long-title-details" })
         {
             DynamicWin.Main.Settings.IslandMode = IslandObject.IslandMode.Notch;
             bool followed = page.StartsWith("followed", StringComparison.Ordinal);
@@ -51,9 +54,9 @@ public static class PreviewRenderer
                 renderer.Model.Rows = new[] { new CcfDeadlineIsland.Models.DeadlineRow(conference, deadline, DateTimeOffset.UtcNow) };
             }
             else if (page is "loading" or "empty" or "empty-filters") renderer.Model.Rows = Array.Empty<CcfDeadlineIsland.Models.DeadlineRow>();
-            else if (page == "long-title") renderer.Model.Rows = new[] { rows[0] with { Conference = rows[0].Conference with { Title = "International Conference on Software Engineering" } } };
+            else if (page is "long-title" or "long-title-details") renderer.Model.Rows = new[] { rows[0] with { Conference = rows[0].Conference with { Title = "International Conference on Software Engineering" } } };
             else renderer.Model.Rows = page == "list-two" ? rows.Take(2).ToArray() : rows;
-            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" or "loading" or "empty" or "empty-filters" or "long-title" => "widgets", "settings-switches-on" => "settings", "list-two" => "list", "urgent-details" or "followed-details" or "copy-feedback" => "details", _ => page });
+            renderer.Menu.ShowPage(page switch { "compact" or "urgent" or "urgent-compact" or "followed" or "followed-compact" or "loading" or "empty" or "empty-filters" or "long-title" => "widgets", "settings-switches-on" => "settings", "list-two" => "list", "urgent-details" or "followed-details" or "copy-feedback" or "long-title-details" => "details", _ => page });
             renderer.Settle(page is not ("compact" or "urgent-compact" or "followed-compact"));
             if (page == "copy-feedback")
             {
@@ -93,7 +96,7 @@ public static class PreviewRenderer
         renderer.Model.Preferences.Ccf = ranks;
         DynamicWin.Main.Settings.IslandMode = IslandObject.IslandMode.Notch;
         File.WriteAllText(Path.Combine(directory, "geometry.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-        File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI and {textChecks} temporal text checks passed via WPF routed pointer events and keyboard input. {nativeChecks} native topmost, {placementChecks} native primary placement and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");
+        File.WriteAllText(Path.Combine(directory, "checks.txt"), $"{checks} production UI and {textChecks} temporal text checks passed via WPF routed pointer events and keyboard input. {accessibilityChecks} accessibility and boundary checks, {accessibilityLayoutChecks} enlarged native layout checks, {nativeChecks} native topmost, {placementChecks} native primary placement and {startupChecks} isolated startup registration checks passed. No desktop window was opened.\n");
         renderer.Dispose();
     }
 }

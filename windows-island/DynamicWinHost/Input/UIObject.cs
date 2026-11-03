@@ -423,6 +423,10 @@ namespace DynamicWin.UI
             if (!isEnabled) isMouseDown = false;
             InputInvalidated?.Invoke(this);
 
+            if (!Settings.AllowAnimation)
+            {
+                this.isEnabled = isEnabled; localBlurAmount = 0; Alpha = 1; return;
+            }
             if (isEnabled)
             {
                 localBlurAmount = blurSizeOnDisable;

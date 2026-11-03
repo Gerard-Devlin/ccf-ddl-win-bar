@@ -5,6 +5,9 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Automation.Peers;
+using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 using CcfDeadlineIsland.DynamicWinHost;
 using CcfDeadlineIsland.DynamicWinHost.Input;
 using DynamicWin.UI;
@@ -44,6 +47,7 @@ public sealed class RendererMain : SKElement, IDisposable
                 && Math.Abs(MainIsland.Size.Y - target.Y) < .5f;
         }
     }
+    protected override AutomationPeer OnCreateAutomationPeer() => new IslandAutomationPeer(this);
     public float alphaOverride = 1f;
     public float blurOverride;
     public float DeltaTime { get; private set; } = 1f / 60;
@@ -85,7 +89,17 @@ public sealed class RendererMain : SKElement, IDisposable
         Input.CaptureCancelled += ReleaseNativeCapture;
         Menu.PageChanged += _ => Input.CancelAll();
         CompositionTarget.Rendering += OnFrame;
-        MouseWheel += (_, e) => { Menu.Scroll(e.Delta); e.Handled = true; };
+        MouseWheel += (_, e) =>
+        {
+            // Enlarged content uses the hidden-bar viewport; ordinary lists use row paging.
+            if (Parent is ScrollViewer viewport && viewport.ScrollableHeight > .5)
+            {
+                bool canScroll = e.Delta > 0 ? viewport.VerticalOffset > .5
+                    : viewport.VerticalOffset < viewport.ScrollableHeight - .5;
+                if (canScroll) return;
+            }
+            if (Menu.Page != "settings") { Menu.Scroll(e.Delta); e.Handled = true; }
+        };
         PreviewMouseDown += NativePointerDown;
         PreviewMouseUp += NativePointerUp;
         MouseMove += (_, e) => Input.PointerMove(LocalPoint(e));
@@ -203,6 +217,7 @@ public sealed class RendererMain : SKElement, IDisposable
         Menu.Update();
         foreach (var element in Menu.UiObjects.ToArray()) element.UpdateCall(DeltaTime);
         Input.Validate();
+        UpdateHintsAndAutomation();
         // A shrinking transparent window can raise MouseLeave before its island has
         // finished contracting. Keep dismissal latched until only the compact hit
         // region remains, then let a subsequent pointer entry expand it again.
@@ -249,6 +264,31 @@ public sealed class RendererMain : SKElement, IDisposable
         finally { _updatingIsland = false; }
     }
 
+    private WriteableBitmap? _surfaceBitmap;
+    protected override void OnRender(DrawingContext drawingContext)
+    {
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget is null || ActualWidth <= 0 || ActualHeight <= 0) return;
+        // Rasterize at display DPI * accessibility scale, so WPF never magnifies a low-resolution bitmap.
+        var dpi = source.CompositionTarget.TransformToDevice;
+        double sx = dpi.M11 * LayoutTransform.Value.M11, sy = dpi.M22 * LayoutTransform.Value.M22;
+        int width = (int)Math.Ceiling(ActualWidth * sx), height = (int)Math.Ceiling(ActualHeight * sy);
+        if (width <= 0 || height <= 0) return;
+        if (_surfaceBitmap is null || _surfaceBitmap.PixelWidth != width || _surfaceBitmap.PixelHeight != height)
+            _surfaceBitmap = new WriteableBitmap(width, height, 96 * sx, 96 * sy, PixelFormats.Pbgra32, null);
+        _surfaceBitmap.Lock();
+        try
+        {
+            using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul),
+                _surfaceBitmap.BackBuffer, _surfaceBitmap.BackBufferStride);
+            surface.Canvas.Scale((float)sx, (float)sy);
+            DrawScene(surface.Canvas);
+            _surfaceBitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
+        }
+        finally { _surfaceBitmap.Unlock(); }
+        drawingContext.DrawImage(_surfaceBitmap, new Rect(0, 0, ActualWidth, ActualHeight));
+    }
+
     protected override void OnPaintSurface(SKPaintSurfaceEventArgs e)
     {
         base.OnPaintSurface(e);
@@ -277,7 +317,31 @@ public sealed class RendererMain : SKElement, IDisposable
         canvas.ClipRoundRect(MainIsland.GetRect(), antialias: true);
         Input.DrawFocus(canvas);
         canvas.RestoreToCount(focusSaved);
+        Menu.DrawOverlays(canvas);
         canvas.Flush();
+    }
+
+    private UIObject? _lastHintTarget;
+    private string? _lastHint;
+    private void UpdateHintsAndAutomation()
+    {
+        var target = Input.HasKeyboardFocus ? Input.FocusedTarget
+            : Input.PointerPosition is { } point ? Input.HitTest(point) : null;
+        string? hint = MainIsland.IsHovering ? Menu.Hint(target) : Menu.AccessibleSummary;
+        if (!ReferenceEquals(target, _lastHintTarget) || hint != _lastHint)
+        {
+            _lastHintTarget = target; _lastHint = hint;
+            if (ToolTip is ToolTip previous) previous.IsOpen = false;
+            ToolTip = hint is null ? null : new ToolTip { Content = hint, MaxWidth = 460 };
+            if (Input.HasKeyboardFocus && target is not null)
+            {
+                var r = target.GetInputRect().Rect;
+                BringIntoView(new Rect(r.Left, r.Top, r.Width, r.Height));
+                if (ToolTip is ToolTip tip && target is ConferenceMenu.MenuButton { HelpText.Length: > 0 })
+                { tip.PlacementTarget = this; tip.IsOpen = true; }
+            }
+        }
+        if (UIElementAutomationPeer.FromElement(this) is IslandAutomationPeer peer) peer.Synchronize();
     }
 
     // Offscreen verification uses these same production objects, not a second UI implementation.

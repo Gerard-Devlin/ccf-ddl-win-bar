@@ -33,19 +33,25 @@ namespace DynamicWin.UI.Menu
 
 namespace DynamicWin.Utils
 {
-    // These are the original Theme.UpdateTheme() dark-theme values.
+    // DynamicWin dark palette with host accessibility adjustments.
     public static class Theme
     {
-        public static Col TextMain { get; } = Col.FromHex("#ffffff");
-        public static Col TextSecond { get; } = Col.FromHex("#a6a6a6");
-        public static Col TextThird { get; } = Col.FromHex("#595959");
+        private static Col SystemColor(System.Windows.Media.Color color) => new(color.R / 255f, color.G / 255f, color.B / 255f);
+        private static Col Adapt(string hex, System.Windows.Media.Color system) => SystemParameters.HighContrast ? SystemColor(system) : Col.FromHex(hex);
+        public static Col TextMain => Adapt("#ffffff", SystemColors.WindowTextColor);
+        public static Col TextSecond => Adapt("#a6a6a6", SystemColors.WindowTextColor);
+        public static Col TextThird => Adapt("#595959", SystemColors.GrayTextColor);
         public static Col Primary { get; } = Col.FromHex("#6988b7");
+        public static Col Selection => Adapt("#303C50", SystemColors.HighlightColor);
+        public static Col SelectionHover => Adapt("#3B4A61", SystemColors.HighlightColor);
+        public static Col SelectionPressed => Adapt("#465873", SystemColors.HighlightColor);
+        public static Col SelectedText => SystemParameters.HighContrast ? SystemColor(SystemColors.HighlightTextColor) : TextMain;
         public static Col Secondary { get; } = Col.FromHex("#061122");
-        public static Col IslandBackground { get; } = Col.FromHex("#000000");
+        public static Col IslandBackground => Adapt("#000000", SystemColors.WindowColor);
         public static Col IconColor { get; } = Col.FromHex("#ffffff");
-        public static Col WidgetBackground { get; } = Col.FromHex("#11ffffff");
+        public static Col WidgetBackground => Adapt("#11ffffff", SystemColors.WindowColor);
         public static Col Success { get; } = Col.FromHex("#bad844");
-        public static Col Error { get; } = Col.FromHex("#d84444");
+        public static Col Error { get; } = Col.FromHex("#FF7979");
     }
 }
 
