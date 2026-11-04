@@ -54,9 +54,23 @@ jobs:
           $app = (Resolve-Path -LiteralPath "artifacts/windows-island-$version/CCF Deadline Island.exe").Path
           $output = Join-Path $PWD 'artifacts/ui-checks'
           $process = Start-Process -FilePath $app -ArgumentList @('--render-preview', "`"$output`"") -WindowStyle Hidden -Wait -PassThru
-          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+          if ($process.ExitCode -ne 0) {
+            $errorReport = Join-Path $output 'render-error.txt'
+            if (Test-Path -LiteralPath $errorReport) { Get-Content -LiteralPath $errorReport }
+            else { Write-Error "Production UI checks exited with code $($process.ExitCode) without an error report." }
+            exit $process.ExitCode
+          }
           if (-not (Test-Path -LiteralPath "$output/checks.txt")) { throw 'Production UI checks did not produce a result.' }
           Get-Content -LiteralPath "$output/checks.txt"
+
+      - name: Upload UI failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CCF-Deadline-Island-UI-failure
+          path: artifacts/ui-checks/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload Windows installer and UI evidence
         uses: actions/upload-artifact@v4
