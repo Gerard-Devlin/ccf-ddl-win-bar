@@ -19,9 +19,18 @@ public static class PreviewRenderer
         renderer.Measure(new Size(700, 500));
         renderer.Arrange(new Rect(0, 0, 700, 500));
         window.PrepareOffscreenPreview();
-        int checks = UiRegressionChecks.Run(renderer);
-        renderer.Menu.ClearFeedback();
-        int textChecks = TextRenderingChecks.Run(renderer, directory);
+        // These suites measure intermediate animation frames. A remote Windows
+        // session can disable animations; exercise both modes independently of it.
+        bool systemMotion = DynamicWin.Main.Settings.AllowAnimation;
+        int checks, textChecks;
+        try
+        {
+            DynamicWin.Main.Settings.AllowAnimation = true;
+            checks = UiRegressionChecks.Run(renderer);
+            renderer.Menu.ClearFeedback();
+            textChecks = TextRenderingChecks.Run(renderer, directory);
+        }
+        finally { DynamicWin.Main.Settings.AllowAnimation = systemMotion; }
         int accessibilityChecks = AccessibilityChecks.Run(renderer);
         int accessibilityLayoutChecks = AccessibilityLayoutChecks.Run(window);
         int nativeChecks = NativeWindowChecks.Run();
