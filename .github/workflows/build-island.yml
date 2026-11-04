@@ -23,10 +23,10 @@ jobs:
         shell: pwsh
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload UI failure diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CCF-Deadline-Island-UI-failure
           path: artifacts/ui-checks/
@@ -73,7 +73,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Windows installer and UI evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CCF-Deadline-Island-Windows-x64
           path: |
