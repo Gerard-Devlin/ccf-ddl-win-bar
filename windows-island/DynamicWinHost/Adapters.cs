@@ -42,9 +42,9 @@ namespace DynamicWin.Utils
         public static Col TextSecond => Adapt("#a6a6a6", SystemColors.WindowTextColor);
         public static Col TextThird => Adapt("#595959", SystemColors.GrayTextColor);
         public static Col Primary { get; } = Col.FromHex("#6988b7");
-        public static Col Selection => Adapt("#303C50", SystemColors.HighlightColor);
-        public static Col SelectionHover => Adapt("#3B4A61", SystemColors.HighlightColor);
-        public static Col SelectionPressed => Adapt("#465873", SystemColors.HighlightColor);
+        public static Col Selection => Adapt("#303030", SystemColors.HighlightColor);
+        public static Col SelectionHover => Adapt("#3B3B3B", SystemColors.HighlightColor);
+        public static Col SelectionPressed => Adapt("#484848", SystemColors.HighlightColor);
         public static Col SelectedText => SystemParameters.HighContrast ? SystemColor(SystemColors.HighlightTextColor) : TextMain;
         public static Col Secondary { get; } = Col.FromHex("#061122");
         public static Col IslandBackground => Adapt("#000000", SystemColors.WindowColor);

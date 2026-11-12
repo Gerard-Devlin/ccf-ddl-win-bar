@@ -31,11 +31,11 @@ Publish the application without creating an installer:
 ./windows-island/Build.ps1 -PublishOnly
 ```
 
-Version 0.1.10 outputs:
+Version 0.1.11 outputs:
 
 ```text
-artifacts/windows-island-0.1.10/
-artifacts/CCF-Deadline-Island_0.1.10_x64-setup.exe
+artifacts/windows-island-0.1.11/
+artifacts/CCF-Deadline-Island_0.1.11_x64-setup.exe
 ```
 
 Distribute the complete publish directory when distributing the application
